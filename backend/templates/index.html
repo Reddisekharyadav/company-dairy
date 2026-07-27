@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorkSense AI — Activity Dashboard</title>
+  <meta name="description" content="Local personal activity tracker — what you worked on today, privately on your machine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #1e90ff;
+      --accent2: #7c3aed;
+      --green: #3fb950;
+      --orange: #f0883e;
+      --red: #f85149;
+      --yellow: #e3b341;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, var(--surface) 0%, #0d1117 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .header-inner {
+      max-width: 1300px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem;
+    }
+    .logo-dot {
+      width: 10px; height: 10px; background: var(--accent);
+      border-radius: 50%; animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(63,185,80,.15); border: 1px solid rgba(63,185,80,.3);
+      border-radius: 20px; padding: 4px 12px; font-size: .8rem; color: var(--green);
+    }
+    .status-dot { width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 1.5s infinite; }
+
+    /* ── CONSENT BANNER ── */
+    #consent-banner {
+      background: linear-gradient(90deg, rgba(124,58,237,.2), rgba(30,144,255,.2));
+      border: 1px solid rgba(124,58,237,.4);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      margin-bottom: 20px;
+    }
+    .consent-text { flex: 1; min-width: 200px; }
+    .consent-text strong { color: var(--accent2); }
+    .consent-text p { color: var(--muted); font-size: .85rem; margin-top: 4px; }
+    .consent-btns { display: flex; gap: 10px; }
+
+    /* ── LAYOUT ── */
+    main { max-width: 1300px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; gap: 20px; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    @media(max-width:900px){ .grid-3,.grid-2{ grid-template-columns:1fr; } }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: rgba(30,144,255,.4); }
+    .card-title {
+      font-size: .75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .icon { font-size: 1rem; }
+
+    /* ── STAT CARDS ── */
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-label { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+    .stat-accent { color: var(--accent); }
+    .stat-green  { color: var(--green); }
+    .stat-orange { color: var(--orange); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 8px 18px; border-radius: 8px; font-size: .85rem;
+      font-weight: 600; cursor: pointer; border: none; transition: all .2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+    }
+    .btn-primary:hover { background: #1a7fe8; transform: translateY(-1px); }
+    .btn-danger  { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
+    .btn-danger:hover { background: rgba(248,81,73,.25); }
+    .btn-success { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+    .btn-success:hover { background: rgba(63,185,80,.25); }
+    .btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── ACTIVITY FEED ── */
+    .activity-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+    .activity-list::-webkit-scrollbar { width: 4px; }
+    .activity-list::-webkit-scrollbar-track { background: transparent; }
+    .activity-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .activity-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid transparent;
+      transition: border-color .15s;
+    }
+    .activity-item:hover { border-color: var(--border); }
+    .activity-time { font-size: .7rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; min-width: 45px; }
+    .activity-app  { font-size: .8rem; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-site { font-size: .75rem; color: var(--accent); min-width: 80px; text-align: right; white-space: nowrap; }
+    .cat-badge {
+      font-size: .65rem; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ── WEBSITE TABLE ── */
+    .site-table { width: 100%; border-collapse: collapse; }
+    .site-table th { text-align: left; font-size: .7rem; color: var(--muted); padding: 0 8px 10px; font-weight: 500; text-transform: uppercase; }
+    .site-table td { padding: 8px; font-size: .83rem; border-top: 1px solid var(--border); }
+    .site-table tr:first-child td { border-top: none; }
+    .site-bar-bg { height: 4px; background: var(--surface2); border-radius: 2px; min-width: 60px; }
+    .site-bar    { height: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width .4s; }
+
+    /* ── REPORT AREA ── */
+    #report-output {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 20px;
+      font-family: 'JetBrains Mono', monospace; font-size: .8rem;
+      line-height: 1.7; white-space: pre-wrap; color: var(--text);
+      max-height: 500px; overflow-y: auto;
+    }
+    #report-output:empty::before { content: 'Click "Generate Report" to see your activity summary.'; color: var(--muted); }
+
+    /* ── SCREENSHOT GRID ── */
+    .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .screenshot-card { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; }
+    .screenshot-card img { width: 100%; height: 90px; object-fit: cover; display: block; transition: transform .2s; }
+    .screenshot-card:hover img { transform: scale(1.04); }
+    .screenshot-meta {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,.8));
+      padding: 6px 8px; font-size: .65rem; color: rgba(255,255,255,.8);
+    }
+    .no-screenshots { color: var(--muted); font-size: .85rem; text-align: center; padding: 30px; }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab {
+      padding: 8px 16px; font-size: .83rem; cursor: pointer;
+      border-bottom: 2px solid transparent; color: var(--muted);
+      transition: all .2s; background: none; border-top: none; border-left: none; border-right: none;
+      font-family: 'Inter', sans-serif; font-weight: 500;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 20px;
+      font-size: .85rem; transform: translateY(80px); opacity: 0;
+      transition: all .3s; z-index: 999;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-color: rgba(63,185,80,.5); color: var(--green); }
+    #toast.error   { border-color: rgba(248,81,73,.5); color: var(--red); }
+
+    /* ── CHART wrapper ── */
+    .chart-wrap { position: relative; height: 220px; }
+    .chart-wrap-sm { position: relative; height: 200px; }
+
+    /* ── SEPARATOR ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-title { font-size: 1.1rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      WorkSense AI
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="header-time" style="font-size:.8rem;color:var(--muted);font-family:'JetBrains Mono',monospace"></span>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span>Tracking Active</span>
+      </div>
+      <button class="btn btn-ghost" onclick="refreshAll()" title="Refresh">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Consent Banner -->
+  <div id="consent-banner" style="display:none">
+    <div class="consent-text">
+      <strong>🖥️ Enable Screen Capture?</strong>
+      <p>WorkSense AI can read your screen every 30 seconds to understand <em>what</em> you're doing (not just which app). All data stays 100% local on your machine. You can disable this anytime.</p>
+    </div>
+    <div class="consent-btns">
+      <button class="btn btn-success" onclick="grantConsent()">✓ Allow Screen Capture</button>
+      <button class="btn btn-danger" onclick="dismissConsent()">✕ No Thanks</button>
+    </div>
+  </div>
+
+  <!-- Stat Row -->
+  <div class="grid grid-3" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">⏱️</span> Total Time Today</div>
+      <div class="stat-value stat-accent" id="stat-total">—</div>
+      <div class="stat-label">hours tracked</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">💻</span> Top Activity</div>
+      <div class="stat-value" id="stat-top" style="font-size:1.3rem">—</div>
+      <div class="stat-label" id="stat-top-time">—</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🌐</span> Sites Visited</div>
+      <div class="stat-value stat-green" id="stat-sites">—</div>
+      <div class="stat-label">unique websites/apps</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid grid-2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂️</span> Activity by Category</div>
+      <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> Timeline (by hour)</div>
+      <div class="chart-wrap"><canvas id="timelineChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Websites + Feed Row -->
+  <div class="grid grid-2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🌍</span> Websites & Apps Visited</div>
+      <div id="sites-table-wrap">
+        <table class="site-table">
+          <thead><tr><th>Site</th><th>Category</th><th>Time</th><th style="width:80px"></th></tr></thead>
+          <tbody id="sites-tbody"><tr><td colspan="4" style="color:var(--muted);padding:20px;text-align:center">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">⚡</span> Live Activity Feed
+        <span id="feed-count" style="margin-left:auto;background:var(--accent);color:#fff;border-radius:10px;padding:1px 8px;font-size:.7rem"></span>
+      </div>
+      <div class="activity-list" id="activity-feed">
+        <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">Loading activity...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report + Screenshots Row -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-header">
+      <div class="section-title">📄 Activity Report</div>
+      <div style="display:flex;gap:8px">
+        <select id="report-period" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.83rem">
+          <option value="daily">Today</option>
+          <option value="weekly">This Week</option>
+        </select>
+        <button class="btn btn-primary" onclick="generateReport()">⚡ Generate Report</button>
+        <button class="btn btn-ghost" id="btn-email-report" onclick="sendReportByEmail()" style="background:rgba(30,144,255,.15);border-color:rgba(30,144,255,.4);color:#58a6ff">📧 Email Report</button>
+        <button class="btn btn-ghost" id="download-md" onclick="downloadReport('md')" style="display:none">⬇ .md</button>
+        <button class="btn btn-ghost" id="download-pdf" onclick="downloadReport('pdf')" style="display:none">⬇ .pdf</button>
+      </div>
+    </div>
+    <div id="report-output"></div>
+  </div>
+
+  <!-- Screen Capture -->
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">
+        <span class="icon">🖥️</span> Screen Captures
+        <span id="screen-status-badge" style="margin-left:8px;font-size:.7rem;padding:2px 10px;border-radius:20px"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-success" id="btn-enable-screen" onclick="grantConsent()" style="display:none">Enable Screen Capture</button>
+        <button class="btn btn-danger"  id="btn-disable-screen" onclick="revokeConsent()" style="display:none">Disable</button>
+      </div>
+    </div>
+    <div id="screenshots-wrap">
+      <div class="no-screenshots">Screen capture not enabled. Click "Enable Screen Capture" to start recording your screen activity.</div>
+    </div>
+  </div>
+</main>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+let catChartInst = null;
+let timelineChartInst = null;
+let lastReportPaths = {};
+const CATEGORY_COLORS = {
+  'Coding':           '#1e90ff',
+  'Coding/Research':  '#7c3aed',
+  'Communication':    '#f0883e',
+  'Entertainment/Social': '#f85149',
+  'Productivity':     '#3fb950',
+  'Learning/Research':'#e3b341',
+  'Browsing':         '#58a6ff',
+  'System':           '#8b949e',
+  'Other':            '#30363d',
+};
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  refreshAll();
+  setInterval(refreshFeed, 10000);
+  setInterval(refreshStats, 30000);
+  checkConsent();
+});
+
+function updateClock() {
+  document.getElementById('header-time').textContent =
+    new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+async function refreshAll() {
+  await Promise.all([
+    refreshFeed(),
+    refreshCategories(),
+    refreshWebsites(),
+    refreshTimeline(),
+    refreshStats(),
+    refreshScreenshots(),
+  ]);
+}
+
+// ─── Consent ────────────────────────────────────────────────────────────────
+async function checkConsent() {
+  try {
+    const r = await fetch('/api/consent/status');
+    const d = await r.json();
+    const banner = document.getElementById('consent-banner');
+    const badgeEl = document.getElementById('screen-status-badge');
+    const btnEnable = document.getElementById('btn-enable-screen');
+    const btnDisable = document.getElementById('btn-disable-screen');
+
+    if (d.screen_capture_enabled) {
+      banner.style.display = 'none';
+      badgeEl.textContent = '● Active';
+      badgeEl.style.cssText = 'background:rgba(63,185,80,.2);color:#3fb950';
+      btnEnable.style.display = 'none';
+      btnDisable.style.display = '';
+    } else {
+      banner.style.display = 'flex';
+      badgeEl.textContent = '○ Disabled';
+      badgeEl.style.cssText = 'background:rgba(139,148,158,.15);color:#8b949e';
+      btnEnable.style.display = '';
+      btnDisable.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+function dismissConsent() {
+  document.getElementById('consent-banner').style.display = 'none';
+}
+
+async function grantConsent() {
+  await fetch('/api/consent/grant', {method:'POST'});
+  showToast('✓ Screen capture enabled! Screenshots every 30 seconds.', 'success');
+  await checkConsent();
+  setTimeout(refreshScreenshots, 2000);
+}
+
+async function revokeConsent() {
+  await fetch('/api/consent/revoke', {method:'POST'});
+  showToast('Screen capture disabled.', '');
+  await checkConsent();
+}
+
+// ─── Stats ──────────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const [cats, sites] = await Promise.all([
+      fetch('/api/categories').then(r=>r.json()),
+      fetch('/api/websites').then(r=>r.json()),
+    ]);
+    const total = cats.reduce((s,c)=>s+c.seconds,0)/3600;
+    document.getElementById('stat-total').textContent = total.toFixed(2);
+    if (cats.length) {
+      document.getElementById('stat-top').textContent = cats[0].category;
+      document.getElementById('stat-top-time').textContent = `${cats[0].hours.toFixed(2)} hours`;
+    }
+    document.getElementById('stat-sites').textContent = sites.length;
+  } catch(e){}
+}
+
+// ─── Categories Chart ───────────────────────────────────────────────────────
+async function refreshCategories() {
+  try {
+    const data = await fetch('/api/categories').then(r=>r.json());
+    const labels = data.map(d=>d.category);
+    const values = data.map(d=>d.hours);
+    const colors = labels.map(l=>CATEGORY_COLORS[l]||'#58a6ff');
+
+    if (catChartInst) catChartInst.destroy();
+    const ctx = document.getElementById('catChart').getContext('2d');
+    catChartInst = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#e6edf3', font: { size: 11 }, boxWidth: 12, padding: 8 } },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${c.parsed.toFixed(2)}h` } }
+        },
+      }
+    });
+  } catch(e){}
+}
+
+// ─── Timeline Chart ─────────────────────────────────────────────────────────
+async function refreshTimeline() {
+  try {
+    const data = await fetch('/api/timeline').then(r=>r.json());
+    const hours = Array.from({length:24},(_,i)=>i);
+    const categories = [...new Set(Object.values(data).flatMap(v=>Object.keys(v)))];
+    const datasets = categories.map(cat => ({
+      label: cat,
+      data: hours.map(h => ((data[String(h)] || {})[cat] || 0) / 60),
+      backgroundColor: CATEGORY_COLORS[cat] || '#58a6ff',
+      borderRadius: 3,
+    }));
+
+    if (timelineChartInst) timelineChartInst.destroy();
+    const ctx = document.getElementById('timelineChart').getContext('2d');
+    timelineChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: hours.map(h=>`${h}:00`), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 45, font:{size:9} }, grid: { color: '#21262d' } },
+          y: { stacked: true, ticks: { color: '#8b949e', font:{size:9} }, grid: { color: '#21262d' }, title: { display:true, text:'minutes', color:'#8b949e', font:{size:9} } },
+        },
+        plugins: { legend: { display: false }, tooltip: { mode:'index' } },
+      }
+    });
+  } catch(e){}
+}
+
+// ─── Websites Table ─────────────────────────────────────────────────────────
+async function refreshWebsites() {
+  try {
+    const sites = await fetch('/api/websites').then(r=>r.json());
+    const tbody = document.getElementById('sites-tbody');
+    if (!sites.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No website data yet. Browse some pages!</td></tr>';
+      return;
+    }
+    const maxMins = Math.max(...sites.map(s=>s.minutes));
+    tbody.innerHTML = sites.slice(0,12).map(s => {
+      const pct = (s.minutes/maxMins*100).toFixed(0);
+      const col = CATEGORY_COLORS[s.category]||'#58a6ff';
+      return `<tr>
+        <td><strong>${s.site}</strong></td>
+        <td><span class="cat-badge" style="background:${col}22;color:${col}">${s.category}</span></td>
+        <td style="color:var(--muted)">${s.minutes} min</td>
+        <td><div class="site-bar-bg"><div class="site-bar" style="width:${pct}%;background:linear-gradient(90deg,${col},${col}aa)"></div></div></td>
+      </tr>`;
+    }).join('');
+  } catch(e){}
+}
+
+// ─── Activity Feed ───────────────────────────────────────────────────────────
+async function refreshFeed() {
+  try {
+    const events = await fetch('/api/events?limit=40').then(r=>r.json());
+    const feed = document.getElementById('activity-feed');
+    document.getElementById('feed-count').textContent = events.length;
+    if (!events.length) {
+      feed.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">No events yet</div>';
+      return;
+    }
+    feed.innerHTML = events.map(e => {
+      const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      const cat = e.category || 'Other';
+      const col = CATEGORY_COLORS[cat] || '#58a6ff';
+      const title = e.window_title ? e.window_title.substring(0,60) : e.application;
+      const site = e.website || '';
+      const idle = e.idle ? '💤' : '';
+      return `<div class="activity-item">
+        <span class="activity-time">${time}</span>
+        <span class="activity-app" title="${e.window_title||''}">${idle}${title}</span>
+        ${site ? `<span class="activity-site">${site}</span>` : ''}
+        <span class="cat-badge" style="background:${col}22;color:${col}">${cat}</span>
+      </div>`;
+    }).join('');
+  } catch(e){}
+}
+
+// ─── Report ──────────────────────────────────────────────────────────────────
+async function generateReport() {
+  const period = document.getElementById('report-period').value;
+  const output = document.getElementById('report-output');
+  output.textContent = '⏳ Generating report...';
+  try {
+    const [content, files] = await Promise.all([
+      fetch(`/api/report_content?period=${period}`).then(r=>r.json()),
+      fetch(`/api/generate_report?period=${period}`).then(r=>r.json()),
+    ]);
+    output.textContent = content.report;
+    lastReportPaths = files;
+    document.getElementById('download-md').style.display = '';
+    document.getElementById('download-pdf').style.display = '';
+    showToast('✓ Report generated!', 'success');
+  } catch(e) {
+    output.textContent = 'Error generating report: ' + e;
+  }
+}
+
+function downloadReport(fmt) {
+  if (lastReportPaths[fmt]) {
+    showToast(`Report saved to: ${lastReportPaths[fmt]}`, 'success');
+  }
+}
+
+async function sendReportByEmail() {
+  const period = document.getElementById('report-period').value;
+  const btn = document.getElementById('btn-email-report');
+  btn.textContent = '⏳ Sending...';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/send_email?period=${period}`, {method:'POST'});
+    const data = await res.json();
+    if (data.status === 'sent') {
+      showToast('📧 Report emailed successfully!', 'success');
+    } else if (data.status === 'not_configured') {
+      showToast('⚠️ Email not configured — right-click tray icon → "Email Setup Guide"', '');
+    } else {
+      showToast('❌ Email failed: ' + (data.detail || 'Unknown error'), '');
+    }
+  } catch(e) {
+    showToast('❌ Email error: ' + e, '');
+  } finally {
+    btn.textContent = '📧 Email Report';
+    btn.disabled = false;
+  }
+}
+
+// ─── Screenshots ─────────────────────────────────────────────────────────────
+async function refreshScreenshots() {
+  try {
+    const shots = await fetch('/api/screenshots').then(r=>r.json());
+    const wrap = document.getElementById('screenshots-wrap');
+    if (!shots.length) {
+      wrap.innerHTML = '<div class="no-screenshots">No screenshots yet. Enable screen capture above to start capturing.</div>';
+      return;
+    }
+    wrap.innerHTML = `<div class="screenshot-grid">${
+      shots.map(s => {
+        const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+        const src = `/api/screenshot/${s.id}`;
+        return `<div class="screenshot-card" title="${s.source}">
+          <img src="${src}" alt="Screen capture" loading="lazy" onerror="this.parentElement.style.display='none'">
+          <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
+        </div>`;
+      }).join('')
+    }</div>`;
+  } catch(e){}
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3500);
+}
+</script>
+</body>
+</html>
