@@ -495,7 +495,25 @@ def main(argv=None):
     try:
         from ui.status_widget import launch_widget
         from backend.app import tracker as _tracker, screen_worker as _sw
-        launch_widget(tracker=_tracker, screen_worker=_sw)
+
+        def _widget_exit_callback():
+            """Called when the user clicks Kill in the floating widget."""
+            log.info('Kill requested from status widget.')
+            try:
+                _tracker.stop()
+            except Exception:
+                pass
+            try:
+                _sw.stop()
+            except Exception:
+                pass
+            try:
+                icon.stop()
+            except Exception:
+                pass
+
+        launch_widget(tracker=_tracker, screen_worker=_sw,
+                      on_exit_callback=_widget_exit_callback)
         log.info('Status widget launched.')
     except Exception as e:
         log.warning('Could not launch status widget: %s', e)

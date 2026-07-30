@@ -22,6 +22,11 @@ except Exception:
     pass
 
 hiddenimports += [
+    # UI (floating status widget)
+    'tkinter',
+    'tkinter.messagebox',
+    'ui',
+    'ui.status_widget',
     # Windows API (active window tracking)
     'win32gui',
     'win32process',
@@ -93,7 +98,6 @@ analysis = Analysis(
     hookspath=[],
     runtime_hooks=[],
     excludes=[
-        'tkinter',
         'matplotlib',
         'numpy',
         'scipy',

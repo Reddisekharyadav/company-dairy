@@ -1,6 +1,6 @@
 """FastAPI application for WorkSense AI dashboard."""
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from database.session import init_db, SessionLocal
 from tracker.tracker import ActivityTracker
 from tracker.git_watcher import GitWatcher
@@ -37,9 +37,22 @@ def shutdown():
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Return 204 No Content so browsers don't log 404 for favicon."""
+    return Response(status_code=204)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return templates.render_index()
+    try:
+        return templates.render_index()
+    except Exception as exc:
+        import traceback
+        return HTMLResponse(
+            content=f"<pre style='color:red'>Server error:\n{traceback.format_exc()}</pre>",
+            status_code=500,
+        )
 
 
 # ─── Status & Consent ─────────────────────────────────────────────────────────
