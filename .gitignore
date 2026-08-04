@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -33,3 +33,6 @@ screenshots/
 # Logs
 *.log
 workspace_cache.json
+
+# Node
+node_modules/
