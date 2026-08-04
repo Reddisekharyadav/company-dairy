@@ -1,0 +1,24 @@
+{
+  "short_name": "WorkSense",
+  "name": "WorkSense AI — Productivity & Cross-Session Memory",
+  "description": "Cross-session activity tracking, research query logging, and AI context handoff for developers, researchers, and teams.",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities", "developer"]
+}

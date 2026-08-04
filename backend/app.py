@@ -16,7 +16,12 @@ from reports.emailer import send_report as email_report, EmailNotConfiguredError
 from reports.briefing import generate_morning_briefing
 from config.settings import settings
 
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI(title="WorkSense AI")
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 tracker       = ActivityTracker(interval=5.0)
 git_watcher   = GitWatcher(interval=30)
