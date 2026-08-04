@@ -66,8 +66,12 @@ hiddenimports += [
     'fastapi',
     'starlette',
     'anyio',
-    # Multiprocessing (freeze_support)
-    'multiprocessing',
+    # New modules (Persona tracking & Session Memory)
+    'tracker.file_watcher',
+    'tracker.search_extractor',
+    'tracker.session_memory',
+    'reports.briefing',
+    'watchdog',
     # Standard
     'threading',
     'logging',

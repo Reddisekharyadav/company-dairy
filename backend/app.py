@@ -4,6 +4,8 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from database.session import init_db, SessionLocal
 from tracker.tracker import ActivityTracker
 from tracker.git_watcher import GitWatcher
+from tracker.file_watcher import FileEditWatcher
+from tracker.search_extractor import SearchExtractor
 from ocr.screen_capture import ScreenCaptureWorker, is_consent_granted, grant_consent, revoke_consent
 import os
 import sys
@@ -11,13 +13,16 @@ from backend import templates
 from datetime import datetime, timedelta
 from reports.generator import generate_markdown, generate_pdf, generate_docx, summarize_events
 from reports.emailer import send_report as email_report, EmailNotConfiguredError
+from reports.briefing import generate_morning_briefing
 from config.settings import settings
 
 app = FastAPI(title="WorkSense AI")
 
-tracker = ActivityTracker(interval=5.0)
-git_watcher = GitWatcher(interval=30)
+tracker       = ActivityTracker(interval=5.0)
+git_watcher   = GitWatcher(interval=30)
 screen_worker = ScreenCaptureWorker(interval=30)
+file_watcher  = FileEditWatcher(interval=5.0)
+search_ext    = SearchExtractor(interval=5.0)
 
 
 @app.on_event("startup")
@@ -26,13 +31,23 @@ def startup():
     tracker.start()
     git_watcher.start()
     screen_worker.start()  # Only activates if consent is granted
+    file_watcher.start()
+    search_ext.start()
 
 
 @app.on_event("shutdown")
 def shutdown():
+    # Save session state before shutting down
+    try:
+        from tracker.session_memory import save_session_state
+        save_session_state()
+    except Exception:
+        pass
     tracker.stop()
     git_watcher.stop()
     screen_worker.stop()
+    file_watcher.stop()
+    search_ext.stop()
 
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -275,3 +290,265 @@ def _period_start(period: str, now: datetime) -> datetime:
     if period == 'weekly':
         return (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+# ─── Dev Files API ────────────────────────────────────────────────────────────
+
+@app.get('/api/files/recent')
+def api_recent_files(limit: int = 30, days: int = 7):
+    """Return recently edited files for the Dev Files tab."""
+    try:
+        session = SessionLocal()
+        from database.models import FileEdit
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(FileEdit)
+                .filter(FileEdit.timestamp >= since)
+                .order_by(FileEdit.timestamp.desc())
+                .limit(limit).all())
+        # Deduplicate by file_name, keeping most recent
+        seen = {}
+        for r in rows:
+            key = r.file_name or r.file_path
+            if key not in seen:
+                seen[key] = {
+                    'file': r.file_name,
+                    'path': r.file_path,
+                    'project': r.project,
+                    'language': r.language,
+                    'duration_min': round((r.duration_sec or 0) / 60, 1),
+                    'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+                    'date': r.session_date,
+                }
+        session.close()
+        return JSONResponse(list(seen.values()))
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/files/heatmap')
+def api_files_heatmap(days: int = 30):
+    """Return daily edit counts for the contribution heatmap."""
+    try:
+        session = SessionLocal()
+        from database.models import FileEdit
+        from sqlalchemy import func
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(FileEdit.session_date,
+                              func.count(FileEdit.id).label('count'))
+                .filter(FileEdit.timestamp >= since)
+                .group_by(FileEdit.session_date)
+                .all())
+        session.close()
+        return JSONResponse({r.session_date: r.count for r in rows})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ─── Research / Search API ────────────────────────────────────────────────────
+
+@app.get('/api/research/queries')
+def api_research_queries(limit: int = 50, days: int = 1):
+    """Return recent search queries for the Research tab."""
+    try:
+        session = SessionLocal()
+        from database.models import SearchQuery
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(SearchQuery)
+                .filter(SearchQuery.timestamp >= since)
+                .order_by(SearchQuery.timestamp.desc())
+                .limit(limit).all())
+        data = [{
+            'id': r.id,
+            'query': r.query,
+            'source': r.source,
+            'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+            'session_id': r.research_session_id,
+            'bookmarked': r.bookmarked,
+        } for r in rows]
+        session.close()
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/research/sessions')
+def api_research_sessions(days: int = 7):
+    """Return research sessions (topic clusters) for the Research tab."""
+    try:
+        session = SessionLocal()
+        from database.models import ResearchSession, SearchQuery
+        import json
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(ResearchSession)
+                .filter(ResearchSession.start_time >= since)
+                .order_by(ResearchSession.start_time.desc())
+                .limit(50).all())
+        result = []
+        for r in rows:
+            samples = (session.query(SearchQuery)
+                       .filter(SearchQuery.research_session_id == r.id)
+                       .order_by(SearchQuery.timestamp)
+                       .limit(6).all())
+            topic = r.topic_label or (samples[0].query[:40] if samples else 'Unknown')
+            result.append({
+                'id': r.id,
+                'topic': topic,
+                'date': r.date,
+                'start': r.start_time.isoformat() if r.start_time else None,
+                'end': r.end_time.isoformat() if r.end_time else None,
+                'query_count': r.query_count,
+                'duration_min': round((r.total_duration_sec or 0) / 60, 1),
+                'sources': json.loads(r.sources) if r.sources else [],
+                'sample_queries': [s.query for s in samples],
+            })
+        session.close()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.post('/api/research/bookmark/{query_id}')
+def api_bookmark_query(query_id: int):
+    """Toggle bookmark on a search query."""
+    try:
+        session = SessionLocal()
+        from database.models import SearchQuery
+        row = session.query(SearchQuery).filter(SearchQuery.id == query_id).first()
+        if not row:
+            session.close()
+            return JSONResponse({'error': 'Not found'}, status_code=404)
+        row.bookmarked = not row.bookmarked
+        session.commit()
+        bookmarked = row.bookmarked
+        session.close()
+        return JSONResponse({'bookmarked': bookmarked})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/research/bookmarks')
+def api_research_bookmarks():
+    """Return all bookmarked search queries."""
+    try:
+        session = SessionLocal()
+        from database.models import SearchQuery
+        rows = (session.query(SearchQuery)
+                .filter(SearchQuery.bookmarked == True)
+                .order_by(SearchQuery.timestamp.desc())
+                .limit(100).all())
+        data = [{
+            'id': r.id,
+            'query': r.query,
+            'source': r.source,
+            'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+        } for r in rows]
+        session.close()
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ─── AI Context Export ────────────────────────────────────────────────────────
+
+@app.get('/api/ai_context')
+def api_ai_context():
+    """Generate and return the AI context export paths + content."""
+    try:
+        from tracker.session_memory import generate_ai_context, CONTEXT_MD
+        md_path, json_path = generate_ai_context()
+        content = CONTEXT_MD.read_text(encoding='utf-8') if CONTEXT_MD.exists() else ''
+        return JSONResponse({
+            'md_path': md_path,
+            'json_path': json_path,
+            'content': content,
+            'generated_at': datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/ai_context/download')
+def api_ai_context_download():
+    """Download the context.md file directly."""
+    try:
+        from tracker.session_memory import CONTEXT_MD, save_session_state
+        if not CONTEXT_MD.exists():
+            save_session_state()
+        return FileResponse(
+            str(CONTEXT_MD),
+            media_type='text/markdown',
+            filename='worksense_context.md',
+        )
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ─── Briefing & Session Memory ────────────────────────────────────────────────
+
+@app.get('/api/briefing')
+def api_briefing():
+    """Return the morning briefing for the Company Worker mode."""
+    try:
+        briefing = generate_morning_briefing()
+        return JSONResponse(briefing)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/session_context')
+def api_session_context():
+    """Return the last session snapshot for the Handoff Card."""
+    try:
+        from tracker.session_memory import load_last_session
+        snap = load_last_session()
+        return JSONResponse(snap or {})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.post('/api/save_session')
+def api_save_session():
+    """Manually trigger session state save (also exports AI context files)."""
+    try:
+        from tracker.session_memory import save_session_state, CONTEXT_MD, CONTEXT_JSON
+        snap = save_session_state()
+        return JSONResponse({
+            'status': 'saved',
+            'context_md': str(CONTEXT_MD),
+            'context_json': str(CONTEXT_JSON),
+            'snapshot_date': snap.get('snapshot_date'),
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/projects/summary')
+def api_projects_summary(days: int = 7):
+    """Return time spent per project for the company/dev view."""
+    try:
+        session = SessionLocal()
+        from database.models import Event, FileEdit
+        since = datetime.now() - timedelta(days=days)
+        events = (session.query(Event)
+                  .filter(Event.timestamp >= since, Event.idle == False)
+                  .all())
+        proj_map: dict = {}
+        for e in events:
+            p = e.project or 'Unknown'
+            if p not in proj_map:
+                proj_map[p] = {'seconds': 0, 'languages': set(), 'files': set()}
+            proj_map[p]['seconds'] += e.duration or 0
+            if e.language:
+                proj_map[p]['languages'].add(e.language)
+            if e.opened_file:
+                proj_map[p]['files'].add(e.opened_file)
+        session.close()
+        result = [{
+            'project': k,
+            'hours': round(v['seconds'] / 3600, 2),
+            'languages': list(v['languages']),
+            'file_count': len(v['files']),
+        } for k, v in sorted(proj_map.items(), key=lambda x: -x[1]['seconds'])]
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)

@@ -1,0 +1,34 @@
+version: '3.9'
+
+services:
+  worksense:
+    image: worksense:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: worksense-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent DB + AI context files
+      - worksense_data:/data
+      # Optional: mount your project directories for git tracking
+      # - /your/projects:/projects:ro
+    environment:
+      - WS_HEADLESS=1
+      - WS_DATA_DIR=/data
+      - APPDATA=/data
+      # Copy your .env values here for production
+      # - WS_EMAIL_TO=you@example.com
+      # - WS_EMAIL_USER=you@gmail.com
+      # - WS_EMAIL_PASS=yourapppassword
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  worksense_data:
+    driver: local

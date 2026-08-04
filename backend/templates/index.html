@@ -3,262 +3,439 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WorkSense AI — Activity Dashboard</title>
-  <meta name="description" content="Local personal activity tracker — what you worked on today, privately on your machine.">
+  <title>WorkSense AI — Productivity Intelligence</title>
+  <meta name="description" content="Cross-session productivity tracker for researchers, developers, and company workers.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
+    /* ── Variables ── */
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface2: #1c2128;
-      --border: #30363d;
-      --accent: #1e90ff;
-      --accent2: #7c3aed;
-      --green: #3fb950;
-      --orange: #f0883e;
-      --red: #f85149;
-      --yellow: #e3b341;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --radius: 12px;
+      --bg:       #0a0e17;
+      --surface:  #111827;
+      --surface2: #1a2235;
+      --surface3: #1f2d45;
+      --border:   #1e2d45;
+      --border2:  #2a3a55;
+      --accent:   #3b82f6;
+      --accent2:  #8b5cf6;
+      --accent3:  #06b6d4;
+      --green:    #10b981;
+      --orange:   #f59e0b;
+      --red:      #ef4444;
+      --yellow:   #fbbf24;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --muted2:   #94a3b8;
+      --radius:   14px;
+      --radius-sm:8px;
+      --glow: 0 0 20px rgba(59,130,246,0.15);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
 
     /* ── HEADER ── */
     header {
-      background: linear-gradient(135deg, var(--surface) 0%, #0d1117 100%);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      position: sticky; top: 0; z-index: 100;
-      backdrop-filter: blur(12px);
+      background:linear-gradient(180deg,var(--surface) 0%,rgba(17,24,39,0.95) 100%);
+      border-bottom:1px solid var(--border);
+      padding:0 28px; position:sticky; top:0; z-index:100;
+      backdrop-filter:blur(16px);
     }
     .header-inner {
-      max-width: 1300px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between;
-      height: 60px;
+      max-width:1400px; margin:0 auto;
+      display:flex; align-items:center; justify-content:space-between; height:64px;
     }
-    .logo {
-      display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem;
-    }
-    .logo-dot {
-      width: 10px; height: 10px; background: var(--accent);
-      border-radius: 50%; animation: pulse 2s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+    .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.05rem; letter-spacing:-.01em; }
+    .logo-icon { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .header-right { display:flex; align-items:center; gap:14px; }
+    .clock { font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--muted2); }
     .status-pill {
-      display: flex; align-items: center; gap: 6px;
-      background: rgba(63,185,80,.15); border: 1px solid rgba(63,185,80,.3);
-      border-radius: 20px; padding: 4px 12px; font-size: .8rem; color: var(--green);
+      display:flex; align-items:center; gap:6px;
+      background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.25);
+      border-radius:20px; padding:5px 14px; font-size:.75rem; color:var(--green); font-weight:500;
     }
-    .status-dot { width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 1.5s infinite; }
+    .status-dot { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.5)} }
 
-    /* ── CONSENT BANNER ── */
-    #consent-banner {
-      background: linear-gradient(90deg, rgba(124,58,237,.2), rgba(30,144,255,.2));
-      border: 1px solid rgba(124,58,237,.4);
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
-      margin-bottom: 20px;
+    /* ── PERSONA TABS ── */
+    .persona-nav {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      padding:0 28px;
     }
-    .consent-text { flex: 1; min-width: 200px; }
-    .consent-text strong { color: var(--accent2); }
-    .consent-text p { color: var(--muted); font-size: .85rem; margin-top: 4px; }
-    .consent-btns { display: flex; gap: 10px; }
+    .persona-nav-inner { max-width:1400px; margin:0 auto; display:flex; gap:0; }
+    .p-tab {
+      display:flex; align-items:center; gap:8px;
+      padding:14px 24px; cursor:pointer; font-size:.85rem; font-weight:500;
+      color:var(--muted2); border-bottom:2px solid transparent;
+      transition:all .2s; background:none; border-top:none; border-left:none; border-right:none;
+      font-family:'Inter',sans-serif;
+    }
+    .p-tab:hover { color:var(--text); }
+    .p-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .p-tab .tab-icon { font-size:1rem; }
 
     /* ── LAYOUT ── */
-    main { max-width: 1300px; margin: 0 auto; padding: 24px; }
-    .grid { display: grid; gap: 20px; }
-    .grid-3 { grid-template-columns: repeat(3, 1fr); }
-    .grid-2 { grid-template-columns: repeat(2, 1fr); }
-    @media(max-width:900px){ .grid-3,.grid-2{ grid-template-columns:1fr; } }
+    main { max-width:1400px; margin:0 auto; padding:28px; }
+    .grid { display:grid; gap:20px; }
+    .g3 { grid-template-columns:repeat(3,1fr); }
+    .g2 { grid-template-columns:repeat(2,1fr); }
+    .g4 { grid-template-columns:repeat(4,1fr); }
+    @media(max-width:1100px){ .g3,.g4{ grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:700px){ .g3,.g2,.g4{ grid-template-columns:1fr; } }
+    .panel { display:none; }
+    .panel.active { display:block; }
 
     /* ── CARDS ── */
     .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 20px;
-      transition: border-color .2s;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:22px;
+      transition:border-color .2s, box-shadow .2s;
     }
-    .card:hover { border-color: rgba(30,144,255,.4); }
+    .card:hover { border-color:var(--border2); box-shadow:var(--glow); }
     .card-title {
-      font-size: .75rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .08em; color: var(--muted); margin-bottom: 14px;
-      display: flex; align-items: center; gap: 8px;
+      font-size:.7rem; font-weight:600; text-transform:uppercase;
+      letter-spacing:.1em; color:var(--muted); margin-bottom:16px;
+      display:flex; align-items:center; gap:8px;
     }
-    .card-title .icon { font-size: 1rem; }
+    .card-title .icon { font-size:.9rem; }
+
+    /* ── SESSION HANDOFF CARD ── */
+    .handoff-card {
+      background:linear-gradient(135deg,rgba(59,130,246,.12) 0%,rgba(139,92,246,.12) 50%,rgba(6,182,212,.08) 100%);
+      border:1px solid rgba(59,130,246,.3);
+      border-radius:var(--radius); padding:24px 28px; margin-bottom:24px;
+      position:relative; overflow:hidden;
+      animation:slideIn .4s ease-out;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+    .handoff-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));
+    }
+    .handoff-card.hidden { display:none; }
+    .handoff-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .handoff-greeting { font-size:1.1rem; font-weight:600; }
+    .handoff-date { font-size:.78rem; color:var(--muted2); font-family:'JetBrains Mono',monospace; }
+    .handoff-body { display:flex; gap:28px; flex-wrap:wrap; }
+    .handoff-section { flex:1; min-width:160px; }
+    .handoff-label { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+    .handoff-files { display:flex; flex-direction:column; gap:5px; }
+    .handoff-file { display:flex; align-items:center; gap:8px; font-size:.82rem; }
+    .handoff-file .fname { font-family:'JetBrains Mono',monospace; color:var(--accent); }
+    .handoff-file .fdur { color:var(--muted2); font-size:.72rem; }
+    .handoff-actions { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+    .dismiss-btn {
+      position:absolute; top:16px; right:16px; background:none; border:none;
+      color:var(--muted); cursor:pointer; font-size:1rem; line-height:1;
+      width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+      transition:all .15s;
+    }
+    .dismiss-btn:hover { background:var(--surface2); color:var(--text); }
 
     /* ── STAT CARDS ── */
-    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-label { color: var(--muted); font-size: .8rem; margin-top: 4px; }
-    .stat-accent { color: var(--accent); }
-    .stat-green  { color: var(--green); }
-    .stat-orange { color: var(--orange); }
+    .stat-value { font-size:2rem; font-weight:700; line-height:1; letter-spacing:-.02em; }
+    .stat-label { color:var(--muted); font-size:.78rem; margin-top:6px; }
+    .stat-accent { color:var(--accent); }
+    .stat-green  { color:var(--green); }
+    .stat-orange { color:var(--orange); }
+    .stat-purple { color:var(--accent2); }
+    .stat-change { font-size:.72rem; margin-top:4px; }
+    .stat-up   { color:var(--green); }
+    .stat-down { color:var(--red); }
 
     /* ── BUTTONS ── */
     .btn {
-      padding: 8px 18px; border-radius: 8px; font-size: .85rem;
-      font-weight: 600; cursor: pointer; border: none; transition: all .2s;
-      font-family: 'Inter', sans-serif;
+      padding:8px 18px; border-radius:8px; font-size:.82rem;
+      font-weight:600; cursor:pointer; border:none; transition:all .2s;
+      font-family:'Inter',sans-serif; display:inline-flex; align-items:center; gap:6px;
     }
-    .btn-primary {
-      background: var(--accent); color: #fff;
-    }
-    .btn-primary:hover { background: #1a7fe8; transform: translateY(-1px); }
-    .btn-danger  { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
-    .btn-danger:hover { background: rgba(248,81,73,.25); }
-    .btn-success { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
-    .btn-success:hover { background: rgba(63,185,80,.25); }
-    .btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover { background:#2563eb; transform:translateY(-1px); box-shadow:0 4px 14px rgba(59,130,246,.4); }
+    .btn-secondary { background:rgba(59,130,246,.15); color:var(--accent); border:1px solid rgba(59,130,246,.3); }
+    .btn-secondary:hover { background:rgba(59,130,246,.25); }
+    .btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+    .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+    .btn-success { background:rgba(16,185,129,.15); color:var(--green); border:1px solid rgba(16,185,129,.3); }
+    .btn-success:hover { background:rgba(16,185,129,.25); }
+    .btn-purple { background:rgba(139,92,246,.15); color:var(--accent2); border:1px solid rgba(139,92,246,.3); }
+    .btn-purple:hover { background:rgba(139,92,246,.25); }
+    .btn-sm { padding:5px 12px; font-size:.75rem; }
+
+    /* ── CHART ── */
+    .chart-wrap { position:relative; height:220px; }
+    .chart-wrap-sm { position:relative; height:180px; }
+    .chart-wrap-lg { position:relative; height:280px; }
 
     /* ── ACTIVITY FEED ── */
-    .activity-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
-    .activity-list::-webkit-scrollbar { width: 4px; }
-    .activity-list::-webkit-scrollbar-track { background: transparent; }
-    .activity-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .activity-list { display:flex; flex-direction:column; gap:5px; max-height:360px; overflow-y:auto; }
     .activity-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 12px; border-radius: 8px;
-      background: var(--surface2); border: 1px solid transparent;
-      transition: border-color .15s;
+      display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px;
+      background:var(--surface2); border:1px solid transparent; transition:border-color .15s;
     }
-    .activity-item:hover { border-color: var(--border); }
-    .activity-time { font-size: .7rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; min-width: 45px; }
-    .activity-app  { font-size: .8rem; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .activity-site { font-size: .75rem; color: var(--accent); min-width: 80px; text-align: right; white-space: nowrap; }
-    .cat-badge {
-      font-size: .65rem; padding: 2px 8px; border-radius: 20px; font-weight: 600;
-      white-space: nowrap;
+    .activity-item:hover { border-color:var(--border2); }
+    .activity-time { font-size:.68rem; color:var(--muted); font-family:'JetBrains Mono',monospace; min-width:42px; }
+    .activity-app { font-size:.8rem; font-weight:500; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .activity-site { font-size:.72rem; color:var(--accent3); min-width:80px; text-align:right; white-space:nowrap; }
+    .cat-badge { font-size:.62rem; padding:2px 8px; border-radius:20px; font-weight:600; white-space:nowrap; }
+
+    /* ── FILE LIST (Dev tab) ── */
+    .file-list { display:flex; flex-direction:column; gap:6px; }
+    .file-item {
+      display:flex; align-items:center; gap:12px; padding:10px 14px;
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      transition:all .15s;
+    }
+    .file-item:hover { border-color:var(--border2); background:var(--surface3); }
+    .file-lang-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .file-name { font-family:'JetBrains Mono',monospace; font-size:.82rem; flex:1; color:var(--text); }
+    .file-project { font-size:.72rem; color:var(--muted2); }
+    .file-dur { font-size:.75rem; color:var(--accent3); font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+    .file-date { font-size:.68rem; color:var(--muted); }
+
+    /* ── RESEARCH QUERIES ── */
+    .query-list { display:flex; flex-direction:column; gap:5px; max-height:400px; overflow-y:auto; }
+    .query-item {
+      display:flex; align-items:center; gap:10px; padding:10px 12px;
+      background:var(--surface2); border-radius:8px; border:1px solid transparent;
+      transition:all .15s;
+    }
+    .query-item:hover { border-color:var(--border2); }
+    .query-source-badge {
+      font-size:.62rem; padding:2px 8px; border-radius:20px; font-weight:600;
+      white-space:nowrap; flex-shrink:0;
+    }
+    .query-text { flex:1; font-size:.83rem; }
+    .query-time { font-size:.68rem; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+    .bookmark-btn {
+      background:none; border:none; cursor:pointer; font-size:.9rem; padding:2px 4px;
+      border-radius:4px; transition:all .15s; color:var(--muted);
+    }
+    .bookmark-btn.active { color:var(--yellow); }
+    .bookmark-btn:hover { transform:scale(1.2); }
+
+    /* ── RESEARCH SESSION CLUSTERS ── */
+    .session-cluster {
+      background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+      padding:16px; margin-bottom:10px; cursor:pointer; transition:all .2s;
+    }
+    .session-cluster:hover { border-color:var(--border2); box-shadow:var(--glow); }
+    .cluster-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .cluster-topic { font-size:.88rem; font-weight:600; }
+    .cluster-meta { display:flex; gap:10px; font-size:.72rem; color:var(--muted2); }
+    .cluster-queries { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+    .query-chip {
+      font-size:.72rem; padding:3px 10px; background:rgba(59,130,246,.1);
+      border:1px solid rgba(59,130,246,.2); border-radius:20px; color:var(--muted2);
     }
 
+    /* ── HEATMAP ── */
+    .heatmap { display:grid; grid-template-columns:repeat(52,1fr); gap:2px; overflow-x:auto; padding-bottom:4px; }
+    .heatmap-cell {
+      width:100%; padding-bottom:100%; border-radius:2px; background:var(--surface2);
+      transition:all .15s; cursor:default;
+    }
+    .heatmap-cell[data-count="0"] { background:var(--surface2); }
+    .heatmap-cell[data-count="1"] { background:rgba(59,130,246,.25); }
+    .heatmap-cell[data-count="2"] { background:rgba(59,130,246,.45); }
+    .heatmap-cell[data-count="3"] { background:rgba(59,130,246,.65); }
+    .heatmap-cell[data-count="4"] { background:rgba(59,130,246,.85); }
+    .heatmap-cell:hover { transform:scale(1.4); z-index:1; }
+
     /* ── WEBSITE TABLE ── */
-    .site-table { width: 100%; border-collapse: collapse; }
-    .site-table th { text-align: left; font-size: .7rem; color: var(--muted); padding: 0 8px 10px; font-weight: 500; text-transform: uppercase; }
-    .site-table td { padding: 8px; font-size: .83rem; border-top: 1px solid var(--border); }
-    .site-table tr:first-child td { border-top: none; }
-    .site-bar-bg { height: 4px; background: var(--surface2); border-radius: 2px; min-width: 60px; }
-    .site-bar    { height: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width .4s; }
+    .site-table { width:100%; border-collapse:collapse; }
+    .site-table th { text-align:left; font-size:.68rem; color:var(--muted); padding:0 8px 10px; font-weight:500; text-transform:uppercase; }
+    .site-table td { padding:8px; font-size:.82rem; border-top:1px solid var(--border); }
+    .site-table tr:first-child td { border-top:none; }
+    .site-bar-bg { height:3px; background:var(--surface2); border-radius:2px; min-width:60px; }
+    .site-bar { height:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:2px; transition:width .4s; }
 
     /* ── REPORT AREA ── */
     #report-output {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 20px;
-      font-family: 'JetBrains Mono', monospace; font-size: .8rem;
-      line-height: 1.7; white-space: pre-wrap; color: var(--text);
-      max-height: 500px; overflow-y: auto;
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:20px; font-family:'JetBrains Mono',monospace; font-size:.78rem;
+      line-height:1.8; white-space:pre-wrap; color:var(--text); max-height:500px; overflow-y:auto;
     }
-    #report-output:empty::before { content: 'Click "Generate Report" to see your activity summary.'; color: var(--muted); }
+    #report-output:empty::before { content:'Click "Generate Report" to see your activity summary.'; color:var(--muted); }
+
+    /* ── AI CONTEXT VIEWER ── */
+    #ai-context-output {
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:20px; font-family:'JetBrains Mono',monospace; font-size:.78rem;
+      line-height:1.8; white-space:pre-wrap; color:var(--text); max-height:460px; overflow-y:auto;
+    }
+    #ai-context-output:empty::before { content:'Click "Export AI Context" to generate context.md'; color:var(--muted); }
+
+    /* ── CONSENT BANNER ── */
+    #consent-banner {
+      background:linear-gradient(90deg,rgba(139,92,246,.15),rgba(59,130,246,.15));
+      border:1px solid rgba(139,92,246,.35); border-radius:var(--radius);
+      padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+      flex-wrap:wrap; gap:12px; margin-bottom:20px;
+    }
 
     /* ── SCREENSHOT GRID ── */
-    .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-    .screenshot-card { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; }
-    .screenshot-card img { width: 100%; height: 90px; object-fit: cover; display: block; transition: transform .2s; }
-    .screenshot-card:hover img { transform: scale(1.04); }
+    .screenshot-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+    .screenshot-card { position:relative; border-radius:8px; overflow:hidden; cursor:pointer; }
+    .screenshot-card img { width:100%; height:90px; object-fit:cover; display:block; transition:transform .2s; }
+    .screenshot-card:hover img { transform:scale(1.04); }
     .screenshot-meta {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,.8));
-      padding: 6px 8px; font-size: .65rem; color: rgba(255,255,255,.8);
+      position:absolute; bottom:0; left:0; right:0;
+      background:linear-gradient(transparent,rgba(0,0,0,.8));
+      padding:6px 8px; font-size:.62rem; color:rgba(255,255,255,.8);
     }
-    .no-screenshots { color: var(--muted); font-size: .85rem; text-align: center; padding: 30px; }
-
-    /* ── TABS ── */
-    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .tab {
-      padding: 8px 16px; font-size: .83rem; cursor: pointer;
-      border-bottom: 2px solid transparent; color: var(--muted);
-      transition: all .2s; background: none; border-top: none; border-left: none; border-right: none;
-      font-family: 'Inter', sans-serif; font-weight: 500;
-    }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-    .tab:hover:not(.active) { color: var(--text); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
 
     /* ── TOAST ── */
     #toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px 20px;
-      font-size: .85rem; transform: translateY(80px); opacity: 0;
-      transition: all .3s; z-index: 999;
+      position:fixed; bottom:24px; right:24px;
+      background:var(--surface2); border:1px solid var(--border);
+      border-radius:10px; padding:14px 20px; font-size:.83rem;
+      transform:translateY(80px); opacity:0; transition:all .3s; z-index:999;
+      display:flex; align-items:center; gap:8px;
     }
-    #toast.show { transform: translateY(0); opacity: 1; }
-    #toast.success { border-color: rgba(63,185,80,.5); color: var(--green); }
-    #toast.error   { border-color: rgba(248,81,73,.5); color: var(--red); }
+    #toast.show { transform:translateY(0); opacity:1; }
+    #toast.success { border-color:rgba(16,185,129,.5); color:var(--green); }
+    #toast.error   { border-color:rgba(239,68,68,.5); color:var(--red); }
+    #toast.info    { border-color:rgba(59,130,246,.5); color:var(--accent); }
 
-    /* ── CHART wrapper ── */
-    .chart-wrap { position: relative; height: 220px; }
-    .chart-wrap-sm { position: relative; height: 200px; }
-
-    /* ── SEPARATOR ── */
+    /* ── DIVIDER ── */
     .section-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 20px;
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;
     }
-    .section-title { font-size: 1.1rem; font-weight: 600; }
+    .section-title { font-size:1.05rem; font-weight:600; }
+    .empty-state { color:var(--muted); font-size:.83rem; text-align:center; padding:32px; }
+
+    /* ── SOURCE COLORS ── */
+    .src-google    { background:rgba(234,67,53,.15);  color:#ea4335; }
+    .src-youtube   { background:rgba(255,0,0,.15);    color:#ff0000; }
+    .src-chatgpt   { background:rgba(16,163,127,.15); color:#10a37f; }
+    .src-gemini    { background:rgba(59,130,246,.15); color:var(--accent); }
+    .src-claude    { background:rgba(210,130,80,.15); color:#d28250; }
+    .src-github    { background:rgba(148,148,148,.15);color:#c9d1d9; }
+    .src-wikipedia { background:rgba(150,150,150,.15);color:#aaa; }
+    .src-medium    { background:rgba(0,0,0,.2);       color:#c9d1d9; }
+    .src-reddit    { background:rgba(255,69,0,.15);   color:#ff4500; }
+    .src-default   { background:rgba(100,116,139,.15);color:var(--muted2); }
+
+    /* ── LANG COLORS ── */
+    .lang-python { background:#3572A5; }
+    .lang-js     { background:#f1e05a; }
+    .lang-ts     { background:#2b7489; }
+    .lang-go     { background:#00ADD8; }
+    .lang-rust   { background:#dea584; }
+    .lang-java   { background:#b07219; }
+    .lang-cs     { background:#178600; }
+    .lang-cpp    { background:#f34b7d; }
+    .lang-html   { background:#e34c26; }
+    .lang-css    { background:#563d7c; }
+    .lang-md     { background:#083fa1; }
+    .lang-default{ background:var(--muted); }
   </style>
 </head>
 <body>
 
+<!-- ── HEADER ─────────────────────────────────────────────────────────────── -->
 <header>
   <div class="header-inner">
     <div class="logo">
-      <div class="logo-dot"></div>
+      <div class="logo-icon">🧠</div>
       WorkSense AI
+      <span style="font-size:.7rem;color:var(--muted);font-weight:400;margin-left:4px">v2.0</span>
     </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span id="header-time" style="font-size:.8rem;color:var(--muted);font-family:'JetBrains Mono',monospace"></span>
+    <div class="header-right">
+      <span class="clock" id="header-time"></span>
       <div class="status-pill">
         <div class="status-dot"></div>
         <span>Tracking Active</span>
       </div>
-      <button class="btn btn-ghost" onclick="refreshAll()" title="Refresh">↻ Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="refreshAll()" title="Refresh">↻ Refresh</button>
     </div>
   </div>
 </header>
 
-<main>
-  <!-- Consent Banner -->
-  <div id="consent-banner" style="display:none">
-    <div class="consent-text">
-      <strong>🖥️ Enable Screen Capture?</strong>
-      <p>WorkSense AI can read your screen every 30 seconds to understand <em>what</em> you're doing (not just which app). All data stays 100% local on your machine. You can disable this anytime.</p>
-    </div>
-    <div class="consent-btns">
-      <button class="btn btn-success" onclick="grantConsent()">✓ Allow Screen Capture</button>
-      <button class="btn btn-danger" onclick="dismissConsent()">✕ No Thanks</button>
-    </div>
+<!-- ── PERSONA TABS ────────────────────────────────────────────────────────── -->
+<nav class="persona-nav">
+  <div class="persona-nav-inner">
+    <button class="p-tab active" id="tab-today" onclick="switchTab('today')">
+      <span class="tab-icon">🏠</span> Today
+    </button>
+    <button class="p-tab" id="tab-research" onclick="switchTab('research')">
+      <span class="tab-icon">🔬</span> Researcher
+    </button>
+    <button class="p-tab" id="tab-dev" onclick="switchTab('dev')">
+      <span class="tab-icon">💻</span> Dev Files
+    </button>
+    <button class="p-tab" id="tab-company" onclick="switchTab('company')">
+      <span class="tab-icon">🏢</span> Company
+    </button>
+    <button class="p-tab" id="tab-reports" onclick="switchTab('reports')">
+      <span class="tab-icon">📊</span> Reports
+    </button>
   </div>
+</nav>
+
+<main>
+
+<!-- ── SESSION HANDOFF CARD ─────────────────────────────────────────────────── -->
+<div class="handoff-card hidden" id="handoff-card">
+  <button class="dismiss-btn" onclick="dismissHandoff()" title="Dismiss">✕</button>
+  <div class="handoff-top">
+    <div class="handoff-greeting" id="handoff-greeting">Loading…</div>
+    <div class="handoff-date" id="handoff-date"></div>
+  </div>
+  <div class="handoff-body" id="handoff-body"></div>
+  <div class="handoff-actions">
+    <button class="btn btn-primary btn-sm" onclick="exportAIContext()">🤖 Export AI Context</button>
+    <button class="btn btn-secondary btn-sm" onclick="switchTab('dev')">📝 View File Journal</button>
+    <button class="btn btn-ghost btn-sm" onclick="switchTab('research')">🔬 Research History</button>
+  </div>
+</div>
+
+<!-- ── CONSENT BANNER ────────────────────────────────────────────────────────── -->
+<div id="consent-banner" style="display:none">
+  <div style="flex:1;min-width:200px">
+    <strong style="color:var(--accent2)">🖥️ Enable Screen Capture?</strong>
+    <p style="color:var(--muted);font-size:.83rem;margin-top:4px">WorkSense AI can take screenshots every 30s to understand what you're doing. All data stays 100% local.</p>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-success" onclick="grantConsent()">✓ Allow</button>
+    <button class="btn btn-ghost" onclick="dismissConsent()">✕ No Thanks</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TODAY PANEL                                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel active" id="panel-today">
 
   <!-- Stat Row -->
-  <div class="grid grid-3" style="margin-bottom:20px">
+  <div class="grid g4" style="margin-bottom:20px">
     <div class="card">
-      <div class="card-title"><span class="icon">⏱️</span> Total Time Today</div>
+      <div class="card-title"><span class="icon">⏱️</span> Active Time Today</div>
       <div class="stat-value stat-accent" id="stat-total">—</div>
       <div class="stat-label">hours tracked</div>
     </div>
     <div class="card">
       <div class="card-title"><span class="icon">💻</span> Top Activity</div>
-      <div class="stat-value" id="stat-top" style="font-size:1.3rem">—</div>
+      <div class="stat-value" id="stat-top" style="font-size:1.2rem">—</div>
       <div class="stat-label" id="stat-top-time">—</div>
     </div>
     <div class="card">
       <div class="card-title"><span class="icon">🌐</span> Sites Visited</div>
       <div class="stat-value stat-green" id="stat-sites">—</div>
-      <div class="stat-label">unique websites/apps</div>
+      <div class="stat-label">unique sites/apps</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔍</span> Searches Today</div>
+      <div class="stat-value stat-purple" id="stat-searches">—</div>
+      <div class="stat-label">queries extracted</div>
     </div>
   </div>
 
   <!-- Charts Row -->
-  <div class="grid grid-2" style="margin-bottom:20px">
+  <div class="grid g2" style="margin-bottom:20px">
     <div class="card">
       <div class="card-title"><span class="icon">🗂️</span> Activity by Category</div>
       <div class="chart-wrap"><canvas id="catChart"></canvas></div>
@@ -270,38 +447,269 @@
   </div>
 
   <!-- Websites + Feed Row -->
-  <div class="grid grid-2" style="margin-bottom:20px">
+  <div class="grid g2" style="margin-bottom:20px">
     <div class="card">
       <div class="card-title"><span class="icon">🌍</span> Websites & Apps Visited</div>
       <div id="sites-table-wrap">
         <table class="site-table">
           <thead><tr><th>Site</th><th>Category</th><th>Time</th><th style="width:80px"></th></tr></thead>
-          <tbody id="sites-tbody"><tr><td colspan="4" style="color:var(--muted);padding:20px;text-align:center">Loading...</td></tr></tbody>
+          <tbody id="sites-tbody"><tr><td colspan="4" style="color:var(--muted);padding:20px;text-align:center">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
     <div class="card">
       <div class="card-title">
         <span class="icon">⚡</span> Live Activity Feed
-        <span id="feed-count" style="margin-left:auto;background:var(--accent);color:#fff;border-radius:10px;padding:1px 8px;font-size:.7rem"></span>
+        <span id="feed-count" style="margin-left:auto;background:var(--accent);color:#fff;border-radius:10px;padding:1px 8px;font-size:.68rem"></span>
       </div>
       <div class="activity-list" id="activity-feed">
-        <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">Loading activity...</div>
+        <div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">Loading activity…</div>
       </div>
     </div>
   </div>
 
-  <!-- Report + Screenshots Row -->
+  <!-- Screen Captures -->
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">
+        <span class="icon">🖥️</span> Screen Captures
+        <span id="screen-status-badge" style="margin-left:8px;font-size:.68rem;padding:2px 10px;border-radius:20px"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-success btn-sm" id="btn-enable-screen" onclick="grantConsent()" style="display:none">Enable</button>
+        <button class="btn btn-ghost btn-sm" id="btn-disable-screen" onclick="revokeConsent()" style="display:none">Disable</button>
+      </div>
+    </div>
+    <div id="screenshots-wrap">
+      <div class="empty-state">Screen capture not enabled.</div>
+    </div>
+  </div>
+
+</div><!-- /panel-today -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- RESEARCHER PANEL                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-research">
+
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔍</span> Today's Search Queries</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="query-days" onchange="refreshResearch()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 10px;font-size:.8rem">
+          <option value="1">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="refreshResearch()">↻ Refresh</button>
+      </div>
+      <div class="query-list" id="query-list">
+        <div class="empty-state">Start browsing and searching — queries will appear here automatically.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔖</span> Bookmarked Discoveries</div>
+      <div class="query-list" id="bookmarks-list">
+        <div class="empty-state">Click ⭐ on any search query to bookmark it.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-header">
+      <div class="section-title">🧩 Research Topic Clusters</div>
+      <div style="display:flex;gap:8px">
+        <select id="session-days" onchange="refreshSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 10px;font-size:.8rem">
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+    </div>
+    <div id="sessions-list">
+      <div class="empty-state">No research sessions yet. Start searching in your browser!</div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span> Sources Distribution</div>
+      <div class="chart-wrap-sm"><canvas id="sourcesChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🕐</span> Research Activity by Hour</div>
+      <div class="chart-wrap-sm"><canvas id="researchTimeChart"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- /panel-research -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- DEV FILES PANEL                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-dev">
+
+  <!-- File Stats Row -->
+  <div class="grid g3" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📝</span> Files Edited Today</div>
+      <div class="stat-value stat-accent" id="dev-stat-files">—</div>
+      <div class="stat-label">unique files</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔤</span> Top Language</div>
+      <div class="stat-value stat-green" id="dev-stat-lang" style="font-size:1.4rem">—</div>
+      <div class="stat-label" id="dev-stat-lang-time">—</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔀</span> Last Git Commit</div>
+      <div id="dev-last-commit" style="font-size:.83rem;font-family:'JetBrains Mono',monospace;color:var(--accent);line-height:1.5">—</div>
+    </div>
+  </div>
+
+  <!-- File Journal + AI Context -->
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">📂 File Edit Journal</div>
+        <select id="file-days" onchange="refreshDevFiles()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 10px;font-size:.8rem">
+          <option value="1">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+      <div class="file-list" id="file-list">
+        <div class="empty-state">Open files in VS Code, Cursor, or PyCharm — they'll be tracked here automatically.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">🤖 AI Context Export</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="exportAIContext()">⚡ Generate</button>
+          <a id="download-ctx-link" style="display:none">
+            <button class="btn btn-success btn-sm">⬇ Download .md</button>
+          </a>
+        </div>
+      </div>
+      <p style="font-size:.8rem;color:var(--muted2);margin-bottom:14px;line-height:1.6">
+        Generates <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">context.md</code> — 
+        load it into Claude Code, Cursor, or Antigravity to continue exactly where you left off.
+      </p>
+      <pre id="ai-context-output"></pre>
+    </div>
+  </div>
+
+  <!-- Contribution Heatmap -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><span class="icon">🟩</span> File Edit Activity — Last 30 Days</div>
+    <div class="heatmap" id="heatmap"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.72rem;color:var(--muted)">
+      <span>Less</span>
+      <div style="width:10px;height:10px;border-radius:2px;background:var(--surface2)"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:rgba(59,130,246,.25)"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:rgba(59,130,246,.55)"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:rgba(59,130,246,.75)"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:rgba(59,130,246,.95)"></div>
+      <span>More</span>
+    </div>
+  </div>
+
+  <!-- Language breakdown -->
+  <div class="grid g2">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> Time by Language</div>
+      <div class="chart-wrap"><canvas id="langChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🗃️</span> Project Distribution</div>
+      <div class="chart-wrap"><canvas id="projectChart"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- /panel-dev -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- COMPANY PANEL                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-company">
+
+  <!-- Morning Briefing -->
+  <div class="card" style="margin-bottom:20px" id="briefing-card">
+    <div class="card-title"><span class="icon">☀️</span> Morning Briefing</div>
+    <div id="briefing-content">
+      <div class="empty-state">Loading briefing…</div>
+    </div>
+  </div>
+
+  <!-- Work Continuity Row -->
+  <div class="grid g3" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">⏱️</span> Yesterday's Hours</div>
+      <div class="stat-value stat-accent" id="co-hours">—</div>
+      <div class="stat-label">active hours</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📝</span> Files Edited</div>
+      <div class="stat-value stat-green" id="co-files">—</div>
+      <div class="stat-label">files touched</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔀</span> Last Commit</div>
+      <div id="co-commit" style="font-size:.82rem;font-family:'JetBrains Mono',monospace;color:var(--accent);line-height:1.5">—</div>
+    </div>
+  </div>
+
+  <!-- Project Summary Chart -->
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂️</span> Time by Project (7 days)</div>
+      <div class="chart-wrap-lg"><canvas id="companyProjectChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📅</span> Weekly Activity Pattern</div>
+      <div class="chart-wrap-lg"><canvas id="weeklyChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Work Continuity Actions -->
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">🔄 Work Continuity</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveSession()">💾 Save Session Now</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportAIContext()">🤖 Export AI Context</button>
+      </div>
+    </div>
+    <p style="font-size:.83rem;color:var(--muted2);line-height:1.6;margin-bottom:16px">
+      Save your current session state so you can resume seamlessly tomorrow. The AI Context file can be loaded into any AI coding assistant.
+    </p>
+    <div id="session-save-status" style="font-size:.8rem;color:var(--muted)">Last saved: never</div>
+  </div>
+
+</div><!-- /panel-company -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- REPORTS PANEL                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-reports">
+
   <div class="card" style="margin-bottom:20px">
     <div class="section-header">
       <div class="section-title">📄 Activity Report</div>
-      <div style="display:flex;gap:8px">
-        <select id="report-period" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.83rem">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="report-period" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.82rem">
           <option value="daily">Today</option>
           <option value="weekly">This Week</option>
         </select>
         <button class="btn btn-primary" onclick="generateReport()">⚡ Generate Report</button>
-        <button class="btn btn-ghost" id="btn-email-report" onclick="sendReportByEmail()" style="background:rgba(30,144,255,.15);border-color:rgba(30,144,255,.4);color:#58a6ff">📧 Email Report</button>
+        <button class="btn btn-secondary" id="btn-email-report" onclick="sendReportByEmail()">📧 Email Report</button>
         <button class="btn btn-ghost" id="download-md" onclick="downloadReport('md')" style="display:none">⬇ .md</button>
         <button class="btn btn-ghost" id="download-pdf" onclick="downloadReport('pdf')" style="display:none">⬇ .pdf</button>
       </div>
@@ -309,45 +717,57 @@
     <div id="report-output"></div>
   </div>
 
-  <!-- Screen Capture -->
-  <div class="card" style="margin-bottom:20px">
+  <!-- Screen Captures in Reports tab -->
+  <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div class="card-title" style="margin-bottom:0">
-        <span class="icon">🖥️</span> Screen Captures
-        <span id="screen-status-badge" style="margin-left:8px;font-size:.7rem;padding:2px 10px;border-radius:20px"></span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-success" id="btn-enable-screen" onclick="grantConsent()" style="display:none">Enable Screen Capture</button>
-        <button class="btn btn-danger"  id="btn-disable-screen" onclick="revokeConsent()" style="display:none">Disable</button>
-      </div>
+      <div class="card-title" style="margin-bottom:0"><span class="icon">🖥️</span> Screen Captures</div>
     </div>
-    <div id="screenshots-wrap">
-      <div class="no-screenshots">Screen capture not enabled. Click "Enable Screen Capture" to start recording your screen activity.</div>
+    <div id="screenshots-wrap-2">
+      <div class="empty-state">No screenshots yet.</div>
     </div>
   </div>
+
+</div><!-- /panel-reports -->
+
 </main>
 
 <!-- Toast -->
 <div id="toast"></div>
 
 <script>
-// ─── State ─────────────────────────────────────────────────────────────────
-let catChartInst = null;
-let timelineChartInst = null;
+// ─── State ────────────────────────────────────────────────────────────────────
+let catChartInst = null, timelineChartInst = null, langChartInst = null;
+let projectChartInst = null, sourcesChartInst = null, researchTimeInst = null;
+let companyProjectInst = null, weeklyChartInst = null;
 let lastReportPaths = {};
+let currentTab = 'today';
+
 const CATEGORY_COLORS = {
-  'Coding':           '#1e90ff',
-  'Coding/Research':  '#7c3aed',
-  'Communication':    '#f0883e',
-  'Entertainment/Social': '#f85149',
-  'Productivity':     '#3fb950',
-  'Learning/Research':'#e3b341',
-  'Browsing':         '#58a6ff',
-  'System':           '#8b949e',
-  'Other':            '#30363d',
+  'Coding':               '#3b82f6',
+  'Coding/Research':      '#8b5cf6',
+  'Communication':        '#f59e0b',
+  'Entertainment/Social': '#ef4444',
+  'Productivity':         '#10b981',
+  'Learning/Research':    '#fbbf24',
+  'Browsing':             '#06b6d4',
+  'System':               '#64748b',
+  'Other':                '#374151',
 };
 
-// ─── Init ───────────────────────────────────────────────────────────────────
+const LANG_COLORS = {
+  'Python':'#3572A5','JavaScript':'#f1e05a','TypeScript':'#2b7489',
+  'Go':'#00ADD8','Rust':'#dea584','Java':'#b07219','C#':'#178600',
+  'C++':'#f34b7d','HTML':'#e34c26','CSS':'#563d7c','Markdown':'#083fa1',
+};
+
+const SOURCE_COLORS = {
+  'Google':'#ea4335','YouTube':'#ff0000','ChatGPT':'#10a37f',
+  'Gemini':'#4285f4','Claude':'#d28250','GitHub':'#6e7681',
+  'Wikipedia':'#999','Stack Overflow':'#f48024','Reddit':'#ff4500',
+  'Medium':'#292929','Bing':'#008373',
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
@@ -355,176 +775,213 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(refreshFeed, 10000);
   setInterval(refreshStats, 30000);
   checkConsent();
+  loadHandoffCard();
 });
 
 function updateClock() {
   document.getElementById('header-time').textContent =
-    new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
 async function refreshAll() {
   await Promise.all([
-    refreshFeed(),
-    refreshCategories(),
-    refreshWebsites(),
-    refreshTimeline(),
-    refreshStats(),
-    refreshScreenshots(),
+    refreshFeed(), refreshCategories(), refreshWebsites(),
+    refreshTimeline(), refreshStats(), refreshScreenshots(),
+    refreshSearchCount(),
   ]);
 }
 
-// ─── Consent ────────────────────────────────────────────────────────────────
+// ─── Tab Switching ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.p-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  currentTab = tab;
+  if (tab === 'research') { refreshResearch(); refreshSessions(); refreshSourcesChart(); }
+  if (tab === 'dev')      { refreshDevFiles(); refreshHeatmap(); refreshLangChart(); refreshProjectChart(); }
+  if (tab === 'company')  { refreshBriefing(); refreshCompanyCharts(); }
+  if (tab === 'reports')  { refreshScreenshots2(); }
+}
+
+// ─── Handoff Card ─────────────────────────────────────────────────────────────
+async function loadHandoffCard() {
+  try {
+    const [snap, briefing] = await Promise.all([
+      fetch('/api/session_context').then(r => r.json()),
+      fetch('/api/briefing').then(r => r.json()),
+    ]);
+    const card = document.getElementById('handoff-card');
+    if (!snap || !snap.date) { card.classList.add('hidden'); return; }
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('handoff-greeting').textContent = briefing.greeting || '👋 Welcome back!';
+    document.getElementById('handoff-date').textContent = `Last session: ${snap.date}`;
+
+    let html = '';
+    if (snap.files && snap.files.length) {
+      html += `<div class="handoff-section"><div class="handoff-label">📝 Files Edited</div><div class="handoff-files">`;
+      snap.files.slice(0,4).forEach(f => {
+        html += `<div class="handoff-file"><span class="fname">${f.file}</span><span class="fdur">${f.duration_min} min</span></div>`;
+      });
+      html += `</div></div>`;
+    }
+    if (snap.last_commit) {
+      html += `<div class="handoff-section"><div class="handoff-label">🔀 Last Commit</div>
+        <div style="font-size:.82rem;font-family:'JetBrains Mono',monospace;color:var(--accent)">${snap.last_commit}</div>
+        </div>`;
+    }
+    if (snap.topics && snap.topics.length) {
+      html += `<div class="handoff-section"><div class="handoff-label">🔬 Research Topics</div>`;
+      snap.topics.slice(0,3).forEach(t => {
+        html += `<div style="font-size:.8rem;margin-bottom:4px">• ${t}</div>`;
+      });
+      html += `</div>`;
+    }
+    if (snap.total_active_sec) {
+      const h = (snap.total_active_sec / 3600).toFixed(1);
+      html += `<div class="handoff-section"><div class="handoff-label">⏱ Active Time</div>
+        <div style="font-size:1.8rem;font-weight:700;color:var(--accent)">${h}h</div></div>`;
+    }
+    document.getElementById('handoff-body').innerHTML = html;
+    card.classList.remove('hidden');
+  } catch(e) {
+    document.getElementById('handoff-card').classList.add('hidden');
+  }
+}
+
+function dismissHandoff() {
+  document.getElementById('handoff-card').classList.add('hidden');
+}
+
+// ─── Consent ──────────────────────────────────────────────────────────────────
 async function checkConsent() {
   try {
-    const r = await fetch('/api/consent/status');
-    const d = await r.json();
+    const d = await fetch('/api/consent/status').then(r => r.json());
     const banner = document.getElementById('consent-banner');
     const badgeEl = document.getElementById('screen-status-badge');
     const btnEnable = document.getElementById('btn-enable-screen');
     const btnDisable = document.getElementById('btn-disable-screen');
-
     if (d.screen_capture_enabled) {
       banner.style.display = 'none';
-      badgeEl.textContent = '● Active';
-      badgeEl.style.cssText = 'background:rgba(63,185,80,.2);color:#3fb950';
-      btnEnable.style.display = 'none';
-      btnDisable.style.display = '';
+      badgeEl.textContent = '● Active'; badgeEl.style.cssText = 'background:rgba(16,185,129,.2);color:#10b981';
+      btnEnable.style.display = 'none'; btnDisable.style.display = '';
     } else {
       banner.style.display = 'flex';
-      badgeEl.textContent = '○ Disabled';
-      badgeEl.style.cssText = 'background:rgba(139,148,158,.15);color:#8b949e';
-      btnEnable.style.display = '';
-      btnDisable.style.display = 'none';
+      badgeEl.textContent = '○ Disabled'; badgeEl.style.cssText = 'background:rgba(100,116,139,.15);color:#64748b';
+      btnEnable.style.display = ''; btnDisable.style.display = 'none';
     }
   } catch(e) {}
 }
-
-function dismissConsent() {
-  document.getElementById('consent-banner').style.display = 'none';
-}
-
+function dismissConsent() { document.getElementById('consent-banner').style.display = 'none'; }
 async function grantConsent() {
   await fetch('/api/consent/grant', {method:'POST'});
-  showToast('✓ Screen capture enabled! Screenshots every 30 seconds.', 'success');
-  await checkConsent();
-  setTimeout(refreshScreenshots, 2000);
+  showToast('✓ Screen capture enabled!', 'success'); await checkConsent(); setTimeout(refreshScreenshots, 2000);
 }
-
 async function revokeConsent() {
   await fetch('/api/consent/revoke', {method:'POST'});
-  showToast('Screen capture disabled.', '');
-  await checkConsent();
+  showToast('Screen capture disabled.', ''); await checkConsent();
 }
 
-// ─── Stats ──────────────────────────────────────────────────────────────────
+// ─── Stats ────────────────────────────────────────────────────────────────────
 async function refreshStats() {
   try {
     const [cats, sites] = await Promise.all([
-      fetch('/api/categories').then(r=>r.json()),
-      fetch('/api/websites').then(r=>r.json()),
+      fetch('/api/categories').then(r => r.json()),
+      fetch('/api/websites').then(r => r.json()),
     ]);
-    const total = cats.reduce((s,c)=>s+c.seconds,0)/3600;
+    const total = cats.reduce((s,c) => s+c.seconds, 0) / 3600;
     document.getElementById('stat-total').textContent = total.toFixed(2);
     if (cats.length) {
       document.getElementById('stat-top').textContent = cats[0].category;
       document.getElementById('stat-top-time').textContent = `${cats[0].hours.toFixed(2)} hours`;
     }
     document.getElementById('stat-sites').textContent = sites.length;
-  } catch(e){}
+  } catch(e) {}
 }
 
-// ─── Categories Chart ───────────────────────────────────────────────────────
+async function refreshSearchCount() {
+  try {
+    const data = await fetch('/api/research/queries?days=1&limit=200').then(r => r.json());
+    document.getElementById('stat-searches').textContent = data.length || 0;
+  } catch(e) {}
+}
+
+// ─── Today Tab Charts ─────────────────────────────────────────────────────────
 async function refreshCategories() {
   try {
-    const data = await fetch('/api/categories').then(r=>r.json());
-    const labels = data.map(d=>d.category);
-    const values = data.map(d=>d.hours);
-    const colors = labels.map(l=>CATEGORY_COLORS[l]||'#58a6ff');
-
+    const data = await fetch('/api/categories').then(r => r.json());
+    const labels = data.map(d => d.category);
+    const values = data.map(d => d.hours);
+    const colors = labels.map(l => CATEGORY_COLORS[l] || '#58a6ff');
     if (catChartInst) catChartInst.destroy();
-    const ctx = document.getElementById('catChart').getContext('2d');
-    catChartInst = new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { color: '#e6edf3', font: { size: 11 }, boxWidth: 12, padding: 8 } },
-          tooltip: { callbacks: { label: c => ` ${c.label}: ${c.parsed.toFixed(2)}h` } }
-        },
-      }
+    catChartInst = new Chart(document.getElementById('catChart').getContext('2d'), {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:2, borderColor:'#111827' }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:'right', labels:{ color:'#e2e8f0', font:{size:11}, boxWidth:12, padding:8 } },
+          tooltip:{ callbacks:{ label:c => ` ${c.label}: ${c.parsed.toFixed(2)}h` } } } }
     });
-  } catch(e){}
+  } catch(e) {}
 }
 
-// ─── Timeline Chart ─────────────────────────────────────────────────────────
 async function refreshTimeline() {
   try {
-    const data = await fetch('/api/timeline').then(r=>r.json());
-    const hours = Array.from({length:24},(_,i)=>i);
-    const categories = [...new Set(Object.values(data).flatMap(v=>Object.keys(v)))];
+    const data = await fetch('/api/timeline').then(r => r.json());
+    const hours = Array.from({length:24},(_,i) => i);
+    const categories = [...new Set(Object.values(data).flatMap(v => Object.keys(v)))];
     const datasets = categories.map(cat => ({
-      label: cat,
-      data: hours.map(h => ((data[String(h)] || {})[cat] || 0) / 60),
-      backgroundColor: CATEGORY_COLORS[cat] || '#58a6ff',
-      borderRadius: 3,
+      label:cat,
+      data:hours.map(h => ((data[String(h)] || {})[cat] || 0) / 60),
+      backgroundColor:CATEGORY_COLORS[cat] || '#58a6ff', borderRadius:3,
     }));
-
     if (timelineChartInst) timelineChartInst.destroy();
-    const ctx = document.getElementById('timelineChart').getContext('2d');
-    timelineChartInst = new Chart(ctx, {
-      type: 'bar',
-      data: { labels: hours.map(h=>`${h}:00`), datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        scales: {
-          x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 45, font:{size:9} }, grid: { color: '#21262d' } },
-          y: { stacked: true, ticks: { color: '#8b949e', font:{size:9} }, grid: { color: '#21262d' }, title: { display:true, text:'minutes', color:'#8b949e', font:{size:9} } },
+    timelineChartInst = new Chart(document.getElementById('timelineChart').getContext('2d'), {
+      type:'bar',
+      data:{ labels:hours.map(h => `${h}:00`), datasets },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{
+          x:{ stacked:true, ticks:{ color:'#64748b', maxRotation:45, font:{size:9} }, grid:{ color:'#1e2d45' } },
+          y:{ stacked:true, ticks:{ color:'#64748b', font:{size:9} }, grid:{ color:'#1e2d45' }, title:{ display:true, text:'minutes', color:'#64748b', font:{size:9} } },
         },
-        plugins: { legend: { display: false }, tooltip: { mode:'index' } },
+        plugins:{ legend:{ display:false }, tooltip:{ mode:'index' } },
       }
     });
-  } catch(e){}
+  } catch(e) {}
 }
 
-// ─── Websites Table ─────────────────────────────────────────────────────────
 async function refreshWebsites() {
   try {
-    const sites = await fetch('/api/websites').then(r=>r.json());
+    const sites = await fetch('/api/websites').then(r => r.json());
     const tbody = document.getElementById('sites-tbody');
     if (!sites.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No website data yet. Browse some pages!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No website data yet.</td></tr>';
       return;
     }
-    const maxMins = Math.max(...sites.map(s=>s.minutes));
+    const maxMins = Math.max(...sites.map(s => s.minutes));
     tbody.innerHTML = sites.slice(0,12).map(s => {
       const pct = (s.minutes/maxMins*100).toFixed(0);
-      const col = CATEGORY_COLORS[s.category]||'#58a6ff';
+      const col = CATEGORY_COLORS[s.category] || '#58a6ff';
       return `<tr>
         <td><strong>${s.site}</strong></td>
         <td><span class="cat-badge" style="background:${col}22;color:${col}">${s.category}</span></td>
         <td style="color:var(--muted)">${s.minutes} min</td>
-        <td><div class="site-bar-bg"><div class="site-bar" style="width:${pct}%;background:linear-gradient(90deg,${col},${col}aa)"></div></div></td>
+        <td><div class="site-bar-bg"><div class="site-bar" style="width:${pct}%"></div></div></td>
       </tr>`;
     }).join('');
-  } catch(e){}
+  } catch(e) {}
 }
 
-// ─── Activity Feed ───────────────────────────────────────────────────────────
 async function refreshFeed() {
   try {
-    const events = await fetch('/api/events?limit=40').then(r=>r.json());
+    const events = await fetch('/api/events?limit=40').then(r => r.json());
     const feed = document.getElementById('activity-feed');
     document.getElementById('feed-count').textContent = events.length;
-    if (!events.length) {
-      feed.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">No events yet</div>';
-      return;
-    }
+    if (!events.length) { feed.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No events yet</div>'; return; }
     feed.innerHTML = events.map(e => {
       const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
       const cat = e.category || 'Other';
       const col = CATEGORY_COLORS[cat] || '#58a6ff';
-      const title = e.window_title ? e.window_title.substring(0,60) : e.application;
+      const title = e.window_title ? e.window_title.substring(0,55) : e.application;
       const site = e.website || '';
       const idle = e.idle ? '💤' : '';
       return `<div class="activity-item">
@@ -534,18 +991,321 @@ async function refreshFeed() {
         <span class="cat-badge" style="background:${col}22;color:${col}">${cat}</span>
       </div>`;
     }).join('');
-  } catch(e){}
+  } catch(e) {}
 }
 
-// ─── Report ──────────────────────────────────────────────────────────────────
+async function refreshScreenshots() {
+  try {
+    const shots = await fetch('/api/screenshots').then(r => r.json());
+    const wrap = document.getElementById('screenshots-wrap');
+    if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
+    wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
+      const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="screenshot-card" title="${s.source}">
+        <img src="/api/screenshot/${s.id}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
+        <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
+      </div>`;
+    }).join('')}</div>`;
+  } catch(e) {}
+}
+
+// ─── RESEARCH TAB ─────────────────────────────────────────────────────────────
+async function refreshResearch() {
+  try {
+    const days = parseInt(document.getElementById('query-days').value) || 1;
+    const data = await fetch(`/api/research/queries?days=${days}&limit=100`).then(r => r.json());
+    const list = document.getElementById('query-list');
+    if (!data.length) { list.innerHTML = '<div class="empty-state">No queries yet. Start searching!</div>'; return; }
+    list.innerHTML = data.map(q => {
+      const srcClass = 'src-' + (q.source || 'default').toLowerCase().replace(/[^a-z]/g,'');
+      const time = q.timestamp ? new Date(q.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      const star = q.bookmarked ? '⭐' : '☆';
+      return `<div class="query-item" id="qi-${q.id}">
+        <span class="query-source-badge ${srcClass}">${q.source || '?'}</span>
+        <span class="query-text">${q.query}</span>
+        <span class="query-time">${time}</span>
+        <button class="bookmark-btn ${q.bookmarked ? 'active' : ''}" onclick="toggleBookmark(${q.id})" title="Bookmark">${star}</button>
+      </div>`;
+    }).join('');
+    // Update search stat
+    document.getElementById('stat-searches').textContent = data.length;
+    await refreshBookmarks();
+  } catch(e) {}
+}
+
+async function refreshBookmarks() {
+  try {
+    const data = await fetch('/api/research/bookmarks').then(r => r.json());
+    const list = document.getElementById('bookmarks-list');
+    if (!data.length) { list.innerHTML = '<div class="empty-state">Click ⭐ on any search query to bookmark it.</div>'; return; }
+    list.innerHTML = data.map(q => {
+      const srcClass = 'src-' + (q.source || 'default').toLowerCase().replace(/[^a-z]/g,'');
+      const time = q.timestamp ? new Date(q.timestamp).toLocaleDateString('en-IN') : '';
+      return `<div class="query-item">
+        <span class="query-source-badge ${srcClass}">${q.source || '?'}</span>
+        <span class="query-text">${q.query}</span>
+        <span class="query-time">${time}</span>
+        <button class="bookmark-btn active" onclick="toggleBookmark(${q.id})" title="Remove">⭐</button>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function toggleBookmark(id) {
+  try {
+    await fetch(`/api/research/bookmark/${id}`, {method:'POST'});
+    await refreshResearch();
+  } catch(e) {}
+}
+
+async function refreshSessions() {
+  try {
+    const days = parseInt(document.getElementById('session-days').value) || 7;
+    const data = await fetch(`/api/research/sessions?days=${days}`).then(r => r.json());
+    const list = document.getElementById('sessions-list');
+    if (!data.length) { list.innerHTML = '<div class="empty-state">No research sessions yet.</div>'; return; }
+    list.innerHTML = data.map(s => {
+      const srcs = (s.sources || []).map(src => {
+        const sc = 'src-' + src.toLowerCase().replace(/[^a-z]/g,'');
+        return `<span class="query-source-badge ${sc}" style="font-size:.6rem">${src}</span>`;
+      }).join(' ');
+      const chips = (s.sample_queries || []).map(q => `<span class="query-chip">${q.substring(0,40)}</span>`).join('');
+      return `<div class="session-cluster">
+        <div class="cluster-header">
+          <div class="cluster-topic">🧩 ${s.topic}</div>
+          <div class="cluster-meta">
+            <span>${s.date}</span>
+            <span>${s.query_count} queries</span>
+            <span>${s.duration_min} min</span>
+            <span>${srcs}</span>
+          </div>
+        </div>
+        <div class="cluster-queries">${chips}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function refreshSourcesChart() {
+  try {
+    const data = await fetch('/api/research/queries?days=30&limit=500').then(r => r.json());
+    const srcMap = {};
+    data.forEach(q => { srcMap[q.source] = (srcMap[q.source] || 0) + 1; });
+    const labels = Object.keys(srcMap);
+    const values = labels.map(k => srcMap[k]);
+    const colors = labels.map(k => SOURCE_COLORS[k] || '#64748b');
+    if (sourcesChartInst) sourcesChartInst.destroy();
+    const ctx = document.getElementById('sourcesChart');
+    if (!ctx) return;
+    sourcesChartInst = new Chart(ctx.getContext('2d'), {
+      type:'pie',
+      data:{ labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:2, borderColor:'#111827' }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:'right', labels:{ color:'#e2e8f0', font:{size:10}, boxWidth:10 } } } }
+    });
+  } catch(e) {}
+}
+
+// ─── DEV FILES TAB ────────────────────────────────────────────────────────────
+async function refreshDevFiles() {
+  try {
+    const days = parseInt(document.getElementById('file-days').value) || 1;
+    const files = await fetch(`/api/files/recent?days=${days}&limit=30`).then(r => r.json());
+    const list = document.getElementById('file-list');
+    document.getElementById('dev-stat-files').textContent = files.length;
+    if (!files.length) {
+      list.innerHTML = '<div class="empty-state">No files tracked yet. Open files in your IDE!</div>';
+      return;
+    }
+    list.innerHTML = files.map(f => {
+      const langKey = (f.language || '').toLowerCase().replace(/[^a-z]/g,'');
+      const bgClass = `lang-${langKey}`;
+      return `<div class="file-item">
+        <div class="file-lang-dot ${bgClass}" title="${f.language || 'Unknown'}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="file-name" title="${f.path || f.file}">${f.file}</div>
+          ${f.project ? `<div class="file-project">📁 ${f.project}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <div class="file-dur">${f.duration_min} min</div>
+          <div class="file-date">${f.date || ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Top language
+    const langMap = {};
+    files.forEach(f => { if (f.language) langMap[f.language] = (langMap[f.language] || 0) + f.duration_min; });
+    const topLang = Object.entries(langMap).sort((a,b) => b[1]-a[1])[0];
+    if (topLang) {
+      document.getElementById('dev-stat-lang').textContent = topLang[0];
+      document.getElementById('dev-stat-lang-time').textContent = `${topLang[1].toFixed(0)} min today`;
+    }
+  } catch(e) {}
+}
+
+async function refreshHeatmap() {
+  try {
+    const data = await fetch('/api/files/heatmap?days=56').then(r => r.json());
+    const hm = document.getElementById('heatmap');
+    hm.innerHTML = '';
+    // Generate last 52 weeks worth of days
+    const today = new Date();
+    for (let i = 364; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0,10);
+      const count = data[key] || 0;
+      const level = count === 0 ? 0 : count === 1 ? 1 : count <= 3 ? 2 : count <= 6 ? 3 : 4;
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell'; cell.dataset.count = level;
+      cell.title = `${key}: ${count} file(s)`;
+      hm.appendChild(cell);
+    }
+  } catch(e) {}
+}
+
+async function refreshLangChart() {
+  try {
+    const events = await fetch('/api/events?limit=500').then(r => r.json());
+    const langMap = {};
+    events.forEach(e => { if (e.language) langMap[e.language] = (langMap[e.language] || 0) + (e.duration_sec || 0); });
+    const labels = Object.keys(langMap).filter(k => k);
+    const values = labels.map(k => langMap[k] / 60);
+    const colors = labels.map(k => LANG_COLORS[k] || '#64748b');
+    if (langChartInst) langChartInst.destroy();
+    const ctx = document.getElementById('langChart');
+    if (!ctx) return;
+    langChartInst = new Chart(ctx.getContext('2d'), {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:2, borderColor:'#111827' }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:'right', labels:{ color:'#e2e8f0', font:{size:10}, boxWidth:10 } },
+          tooltip:{ callbacks:{ label:c => ` ${c.label}: ${c.parsed.toFixed(0)} min` } } } }
+    });
+  } catch(e) {}
+}
+
+async function refreshProjectChart() {
+  try {
+    const data = await fetch('/api/projects/summary?days=7').then(r => r.json());
+    if (!data.length) return;
+    const labels = data.map(d => d.project);
+    const values = data.map(d => d.hours);
+    if (projectChartInst) projectChartInst.destroy();
+    const ctx = document.getElementById('projectChart');
+    if (!ctx) return;
+    projectChartInst = new Chart(ctx.getContext('2d'), {
+      type:'bar',
+      data:{ labels, datasets:[{ label:'Hours', data:values,
+        backgroundColor:labels.map((_,i) => `hsl(${210 + i*30},70%,55%)`),
+        borderRadius:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{
+          x:{ ticks:{ color:'#64748b', font:{size:9} }, grid:{ color:'#1e2d45' } },
+          y:{ ticks:{ color:'#64748b' }, grid:{ color:'#1e2d45' } }
+        },
+        plugins:{ legend:{ display:false } }
+      }
+    });
+  } catch(e) {}
+}
+
+// ─── AI Context Export ────────────────────────────────────────────────────────
+async function exportAIContext() {
+  const output = document.getElementById('ai-context-output');
+  if (output) output.textContent = '⏳ Generating context.md…';
+  try {
+    const data = await fetch('/api/ai_context').then(r => r.json());
+    if (output) output.textContent = data.content || 'Generated! Check your AppData/WorkSense/context.md';
+    // Update download link
+    const link = document.getElementById('download-ctx-link');
+    if (link) { link.href = '/api/ai_context/download'; link.download = 'worksense_context.md'; link.style.display = ''; }
+    showToast('✓ context.md generated!', 'success');
+    // Switch to dev tab if not already there
+    if (currentTab !== 'dev') switchTab('dev');
+  } catch(e) {
+    if (output) output.textContent = 'Error: ' + e;
+    showToast('❌ Error generating context', 'error');
+  }
+}
+
+// ─── COMPANY TAB ──────────────────────────────────────────────────────────────
+async function refreshBriefing() {
+  try {
+    const data = await fetch('/api/briefing').then(r => r.json());
+    const el = document.getElementById('briefing-content');
+    if (!data.has_data) {
+      el.innerHTML = `<div style="font-size:1.05rem;font-weight:600;margin-bottom:8px">${data.greeting}</div>
+        <p style="color:var(--muted2);font-size:.85rem">${data.resume_message || 'No session data yet. Start tracking!'}</p>`;
+      return;
+    }
+    document.getElementById('co-hours').textContent = data.hours_worked || '—';
+    document.getElementById('co-files').textContent = data.files_edited_count || '—';
+    document.getElementById('co-commit').textContent = data.last_commit || '—';
+
+    let html = `<div style="font-size:1.05rem;font-weight:600;margin-bottom:12px">${data.greeting}</div>`;
+    if (data.resume_message) {
+      html += `<div style="font-size:.88rem;color:var(--muted2);line-height:1.6;margin-bottom:16px;background:var(--surface2);padding:12px;border-radius:8px;border-left:3px solid var(--accent)">${data.resume_message}</div>`;
+    }
+    if (data.top_files && data.top_files.length) {
+      html += `<div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">📝 Continue with these files</div>
+        <div class="file-list">`;
+      data.top_files.forEach(f => {
+        html += `<div class="file-item">
+          <div class="file-name">${f.file}</div>
+          <div class="file-dur">${f.duration_min} min</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    el.innerHTML = html;
+  } catch(e) {}
+}
+
+async function refreshCompanyCharts() {
+  try {
+    const data = await fetch('/api/projects/summary?days=7').then(r => r.json());
+    if (data.length && document.getElementById('companyProjectChart')) {
+      if (companyProjectInst) companyProjectInst.destroy();
+      companyProjectInst = new Chart(document.getElementById('companyProjectChart').getContext('2d'), {
+        type:'bar',
+        data:{
+          labels:data.map(d => d.project),
+          datasets:[{ label:'Hours', data:data.map(d => d.hours),
+            backgroundColor:data.map((_,i) => `hsl(${210+i*25},65%,55%)`), borderRadius:8 }]
+        },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          scales:{
+            x:{ ticks:{ color:'#64748b' }, grid:{ color:'#1e2d45' } },
+            y:{ ticks:{ color:'#64748b' }, grid:{ display:false } }
+          },
+          plugins:{ legend:{ display:false } }
+        }
+      });
+    }
+  } catch(e) {}
+}
+
+async function saveSession() {
+  try {
+    const data = await fetch('/api/save_session', {method:'POST'}).then(r => r.json());
+    document.getElementById('session-save-status').textContent =
+      `Last saved: ${new Date().toLocaleTimeString()} — ${data.context_md || ''}`;
+    showToast('✓ Session saved! AI context files updated.', 'success');
+  } catch(e) {
+    showToast('❌ Save failed: ' + e, 'error');
+  }
+}
+
+// ─── REPORTS TAB ──────────────────────────────────────────────────────────────
 async function generateReport() {
   const period = document.getElementById('report-period').value;
   const output = document.getElementById('report-output');
-  output.textContent = '⏳ Generating report...';
+  output.textContent = '⏳ Generating report…';
   try {
     const [content, files] = await Promise.all([
-      fetch(`/api/report_content?period=${period}`).then(r=>r.json()),
-      fetch(`/api/generate_report?period=${period}`).then(r=>r.json()),
+      fetch(`/api/report_content?period=${period}`).then(r => r.json()),
+      fetch(`/api/generate_report?period=${period}`).then(r => r.json()),
     ]);
     output.textContent = content.report;
     lastReportPaths = files;
@@ -553,66 +1313,47 @@ async function generateReport() {
     document.getElementById('download-pdf').style.display = '';
     showToast('✓ Report generated!', 'success');
   } catch(e) {
-    output.textContent = 'Error generating report: ' + e;
+    output.textContent = 'Error: ' + e;
   }
 }
 
 function downloadReport(fmt) {
-  if (lastReportPaths[fmt]) {
-    showToast(`Report saved to: ${lastReportPaths[fmt]}`, 'success');
-  }
+  if (lastReportPaths[fmt]) showToast(`Report saved to: ${lastReportPaths[fmt]}`, 'success');
 }
 
 async function sendReportByEmail() {
   const period = document.getElementById('report-period').value;
   const btn = document.getElementById('btn-email-report');
-  btn.textContent = '⏳ Sending...';
-  btn.disabled = true;
+  btn.textContent = '⏳ Sending…'; btn.disabled = true;
   try {
-    const res = await fetch(`/api/send_email?period=${period}`, {method:'POST'});
-    const data = await res.json();
-    if (data.status === 'sent') {
-      showToast('📧 Report emailed successfully!', 'success');
-    } else if (data.status === 'not_configured') {
-      showToast('⚠️ Email not configured — right-click tray icon → "Email Setup Guide"', '');
-    } else {
-      showToast('❌ Email failed: ' + (data.detail || 'Unknown error'), '');
-    }
+    const data = await fetch(`/api/send_email?period=${period}`, {method:'POST'}).then(r => r.json());
+    if (data.status === 'sent') showToast('📧 Report emailed!', 'success');
+    else if (data.status === 'not_configured') showToast('⚠️ Email not configured', '');
+    else showToast('❌ Email failed: ' + (data.detail || ''), 'error');
   } catch(e) {
-    showToast('❌ Email error: ' + e, '');
+    showToast('❌ Email error: ' + e, 'error');
   } finally {
-    btn.textContent = '📧 Email Report';
-    btn.disabled = false;
+    btn.textContent = '📧 Email Report'; btn.disabled = false;
   }
 }
 
-// ─── Screenshots ─────────────────────────────────────────────────────────────
-async function refreshScreenshots() {
+async function refreshScreenshots2() {
   try {
-    const shots = await fetch('/api/screenshots').then(r=>r.json());
-    const wrap = document.getElementById('screenshots-wrap');
-    if (!shots.length) {
-      wrap.innerHTML = '<div class="no-screenshots">No screenshots yet. Enable screen capture above to start capturing.</div>';
-      return;
-    }
-    wrap.innerHTML = `<div class="screenshot-grid">${
-      shots.map(s => {
-        const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-        const src = `/api/screenshot/${s.id}`;
-        return `<div class="screenshot-card" title="${s.source}">
-          <img src="${src}" alt="Screen capture" loading="lazy" onerror="this.parentElement.style.display='none'">
-          <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
-        </div>`;
-      }).join('')
-    }</div>`;
-  } catch(e){}
+    const shots = await fetch('/api/screenshots').then(r => r.json());
+    const wrap = document.getElementById('screenshots-wrap-2');
+    if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
+    wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
+      const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="screenshot-card"><img src="/api/screenshot/${s.id}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
+        <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div></div>`;
+    }).join('')}</div>`;
+  } catch(e) {}
 }
 
-// ─── Toast ───────────────────────────────────────────────────────────────────
+// ─── Toast ────────────────────────────────────────────────────────────────────
 function showToast(msg, type='') {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `show ${type}`;
+  t.textContent = msg; t.className = `show ${type}`;
   setTimeout(() => t.className = '', 3500);
 }
 </script>
