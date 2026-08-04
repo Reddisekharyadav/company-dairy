@@ -411,12 +411,12 @@ def _start_web_server():
     try:
         import uvicorn
         from backend.app import app
-        log.info('Starting Web Dashboard server on http://127.0.0.1:8000')
+        log.info('Starting Web Dashboard server on http://0.0.0.0:8000')
         # log_config=None prevents uvicorn from calling dictConfig which
         # crashes on Python 3.14 due to a changed logging formatter API.
         uvicorn.run(
             app,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=8000,
             log_level="error",
             log_config=None,
