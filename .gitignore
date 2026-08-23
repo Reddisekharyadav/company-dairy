@@ -24,6 +24,7 @@ reports/__pycache__/
 
 # Screenshots (private)
 screenshots/
+!docs/screenshots/
 
 # IDE
 .vscode/
