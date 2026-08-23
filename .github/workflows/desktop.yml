@@ -38,7 +38,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev xdotool xprop libgirepository1.0-dev
+          sudo apt-get install -y libx11-dev xdotool x11-utils libgirepository1.0-dev
 
       - name: Install Python Dependencies
         run: |
