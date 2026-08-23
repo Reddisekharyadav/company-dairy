@@ -84,6 +84,7 @@ class FileEdit(Base):
     duration_sec = Column(Float, default=0.0)
     event_type = Column(String(32), default='modified')
     session_date = Column(String(20))
+    editor = Column(String(128), nullable=True)      # "VS Code", "PyCharm", "Cursor"
 
 
 # ── Search Query Tracker (Researcher Mode) ────────────────────────────────────
@@ -137,3 +138,21 @@ class SessionSnapshot(Base):
     categories_json = Column(Text, nullable=True)
     summary_text = Column(Text, nullable=True)
     ai_context_md = Column(Text, nullable=True)
+
+
+# ── Browser History (Real URLs from Chrome/Edge/Firefox) ──────────────────────
+
+class BrowserHistory(Base):
+    """Stores actual browsing history read from Chrome/Edge/Firefox databases."""
+    __tablename__ = "browser_history"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    url = Column(String(2048), nullable=True)
+    title = Column(String(1024), nullable=True)
+    site_name = Column(String(256), nullable=True)
+    domain = Column(String(256), nullable=True)
+    visit_count = Column(Integer, default=1)
+    duration_sec = Column(Float, default=0.0)
+    browser = Column(String(64), nullable=True)       # "Chrome", "Edge", "Firefox"
+    category = Column(String(64), nullable=True)
+    session_date = Column(String(20))

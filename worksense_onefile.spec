@@ -3,6 +3,7 @@
 # No web server. Runs silently in system tray.
 # Build: venv\Scripts\python.exe -m PyInstaller worksense_onefile.spec --noconfirm --clean
 import os
+import platform
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 project_root = os.path.abspath(os.getcwd())
@@ -27,11 +28,6 @@ hiddenimports += [
     'tkinter.messagebox',
     'ui',
     'ui.status_widget',
-    # Windows API (active window tracking)
-    'win32gui',
-    'win32process',
-    'win32con',
-    'pywintypes',
     # Tray icon
     'pystray._win32',
     # System monitoring
@@ -66,22 +62,45 @@ hiddenimports += [
     'fastapi',
     'starlette',
     'anyio',
-    # New modules (Persona tracking & Session Memory)
+    'httptools',
+    'websockets',
+    'python_multipart',
+    # Tracker modules
     'tracker.file_watcher',
     'tracker.search_extractor',
     'tracker.session_memory',
+    'tracker.browser_history',
+    'tracker.active_window',
+    'tracker.categorizer',
     'reports.briefing',
     'watchdog',
+    # .env support
+    'dotenv',
     # Standard
     'threading',
     'logging',
     'sqlite3',
     'pathlib',
     'datetime',
+    'tempfile',
+    'shutil',
+    'urllib',
+    'urllib.parse',
 ]
+
+# Platform-specific imports
+if platform.system() == 'Windows':
+    hiddenimports += [
+        'win32gui',
+        'win32process',
+        'win32con',
+        'pywintypes',
+    ]
 
 # ── Data files ────────────────────────────────────────────────────────────────
 datas = []
+
+# Bundle backend templates and static files
 for base_dir in ('backend/templates', 'backend/static'):
     full_path = os.path.join(project_root, base_dir)
     if os.path.isdir(full_path):
@@ -89,8 +108,12 @@ for base_dir in ('backend/templates', 'backend/static'):
             rel_dir = os.path.relpath(root_dir, project_root)
             for fname in files:
                 src = os.path.join(root_dir, fname)
-                dest = os.path.join(rel_dir, fname)
-                datas.append((src, dest))
+                datas.append((src, rel_dir))
+
+# Bundle .env file if it exists
+env_file = os.path.join(project_root, '.env')
+if os.path.isfile(env_file):
+    datas.append((env_file, '.'))
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
 analysis = Analysis(

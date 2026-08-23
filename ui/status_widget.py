@@ -126,10 +126,11 @@ class StatusWidget:
     PANEL_BG    = '#161b22'
     PANEL_BORDER= '#30363d'
 
-    PILL_W = 280
+    PILL_W = 340
+    PILL_MIN_W = 60
     PILL_H = 48
-    PANEL_W = 280
-    PANEL_H = 120   # height of expanded panel
+    PANEL_W = 340
+    PANEL_H = 155   # height of expanded panel (increased for dashboard row)
     MARGIN  = 12
 
     def __init__(self, tracker=None, screen_worker=None, on_exit_callback=None):
@@ -143,6 +144,7 @@ class StatusWidget:
         self._root              = None
         self._panel_win         = None   # secondary Toplevel for the expanded panel
         self._panel_open        = False
+        self._minimized         = False
         self._running           = False
         self._lock              = threading.Lock()
 
@@ -249,7 +251,23 @@ class StatusWidget:
                                  fg=self.FG_ACTIVE, bg=self.BG_ACTIVE)
         self._dot_lbl.pack(side='left')
 
-        info = tk.Frame(left, bg=self.BG_ACTIVE)
+        self._min_btn = tk.Button(
+            left, text='›', font=('Segoe UI', 12, 'bold'),
+            fg=self.FG_MUTED, bg=self.BG_ACTIVE,
+            relief='flat', cursor='hand2',
+            padx=4, pady=0, bd=0,
+            activebackground=self.BG_ACTIVE, activeforeground='#fff',
+            command=self._toggle_minimize,
+        )
+        self._min_btn.pack(side='left')
+
+        # collapsible info frame
+        self._info_frame = tk.Frame(outer, bg=self.BG_ACTIVE)
+        self._info_frame.pack(side='left', fill='both', expand=True)
+        self._info_frame.bind('<Button-1>',  self._on_drag_start)
+        self._info_frame.bind('<B1-Motion>', self._on_drag_move)
+
+        info = tk.Frame(self._info_frame, bg=self.BG_ACTIVE)
         info.pack(side='left', padx=(4, 0))
 
         self._status_lbl = tk.Label(info, text='Recording',
@@ -264,7 +282,7 @@ class StatusWidget:
 
         # RIGHT: single ☰ menu button
         self._menu_btn = tk.Button(
-            outer,
+            self._info_frame,
             text='☰',
             font=('Segoe UI', 11, 'bold'),
             fg='#c9d1d9',
@@ -277,6 +295,42 @@ class StatusWidget:
             command=self._toggle_panel,
         )
         self._menu_btn.pack(side='right')
+
+        # PORT LABEL (clickable — opens dashboard)
+        port_text = f':{_SERVER_PORT}'
+        self._port_lbl = tk.Label(
+            self._info_frame, text=port_text,
+            font=('Consolas', 8, 'bold'),
+            fg=self.FG_PORT, bg=self.BG_ACTIVE,
+            cursor='hand2',
+        )
+        self._port_lbl.pack(side='right', padx=(0, 6))
+        self._port_lbl.bind('<Button-1>', self._on_open_dashboard)
+
+        # Tooltip-style hover effect on port label
+        self._port_lbl.bind('<Enter>', lambda e: self._port_lbl.configure(fg='#79c0ff'))
+        self._port_lbl.bind('<Leave>', lambda e: self._port_lbl.configure(fg=self.FG_PORT))
+
+    def _toggle_minimize(self):
+        self._minimized = not self._minimized
+        if self._minimized:
+            # minimize
+            if self._panel_open:
+                self._close_panel()
+            self._info_frame.pack_forget()
+            self._min_btn.configure(text='‹')
+            
+            x = self._root.winfo_x() + (self.PILL_W - self.PILL_MIN_W)
+            y = self._root.winfo_y()
+            self._root.geometry(f'{self.PILL_MIN_W}x{self.PILL_H}+{x}+{y}')
+        else:
+            # restore
+            self._info_frame.pack(side='left', fill='both', expand=True)
+            self._min_btn.configure(text='›')
+            
+            x = self._root.winfo_x() - (self.PILL_W - self.PILL_MIN_W)
+            y = self._root.winfo_y()
+            self._root.geometry(f'{self.PILL_W}x{self.PILL_H}+{x}+{y}')
 
     # ── PANEL ────────────────────────────────────────────────────────────────
 
@@ -393,6 +447,21 @@ class StatusWidget:
             activebackground='#0a3520',
             command=self._on_email,
         ).pack(side='right', fill='x', expand=True, padx=(4, 0))
+
+        # ── Row 4: Open Dashboard ─────────────────────────────────────────────
+        row4 = tk.Frame(inner, bg=self.PANEL_BG)
+        row4.pack(fill='x', pady=(8, 0))
+
+        dashboard_url = f'http://127.0.0.1:{_SERVER_PORT}'
+        tk.Button(
+            row4,
+            text=f'🌐  Open Dashboard  ({dashboard_url})',
+            font=('Segoe UI', 8, 'bold'),
+            fg='#58a6ff', bg='#0d2240', relief='flat', cursor='hand2',
+            padx=8, pady=4, bd=0,
+            activebackground='#0c2a50',
+            command=self._on_open_dashboard,
+        ).pack(fill='x')
 
         # Click outside to close
         pw.bind('<FocusOut>', self._on_panel_focus_out)
@@ -558,6 +627,9 @@ class StatusWidget:
         except Exception:
             pass
         for child in widget.winfo_children():
+            # Skip port label — it keeps its own colour
+            if child is getattr(self, '_port_lbl', None):
+                continue
             self._set_bg_recursive(child, bg)
 
     def _tick(self):

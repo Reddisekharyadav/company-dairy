@@ -34,7 +34,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Run WorkSense AI automatically when Windows starts"; GroupDescription: "Startup Settings"
 
 [Files]
-Source: "..\dist\WorkSense\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\WorkSense.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

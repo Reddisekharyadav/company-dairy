@@ -43,7 +43,12 @@ def summarize_events(start: datetime, end: datetime) -> str:
         bar = '█' * int(pct / 5)
         lines.append(f"  {cat:<22} {hours:5.2f}h  ({pct:4.1f}%)  {bar}")
 
-    # --- Website breakdown ---
+    # --- Browser History (from BrowserHistory table) ---
+    browser_lines = _get_browser_history_section(start, end)
+    if browser_lines:
+        lines.extend(browser_lines)
+
+    # --- Website breakdown (from Events table — fallback) ---
     web_map = {}
     for e in events:
         if e.idle or not e.website:
@@ -58,19 +63,24 @@ def summarize_events(start: datetime, end: datetime) -> str:
             mins = secs / 60.0
             lines.append(f"  {site:<30} {mins:5.1f} min")
 
-    # --- Files & projects ---
-    file_map = {}
-    for e in events:
-        if e.opened_file:
-            file_map.setdefault(e.opened_file, 0)
-            file_map[e.opened_file] += e.duration or 0
+    # --- Files edited (enhanced with IDE info) ---
+    file_lines = _get_file_edits_section(start, end)
+    if file_lines:
+        lines.extend(file_lines)
+    else:
+        # Fallback to basic file tracking from Events
+        file_map = {}
+        for e in events:
+            if e.opened_file:
+                file_map.setdefault(e.opened_file, 0)
+                file_map[e.opened_file] += e.duration or 0
 
-    if file_map:
-        lines.append("\n💻  FILES WORKED ON")
-        lines.append("-" * 30)
-        for fname, secs in sorted(file_map.items(), key=lambda x: -x[1])[:10]:
-            mins = secs / 60.0
-            lines.append(f"  {fname:<40} {mins:4.1f} min")
+        if file_map:
+            lines.append("\n💻  FILES WORKED ON")
+            lines.append("-" * 30)
+            for fname, secs in sorted(file_map.items(), key=lambda x: -x[1])[:10]:
+                mins = secs / 60.0
+                lines.append(f"  {fname:<40} {mins:4.1f} min")
 
     # --- Git commits ---
     if git_activity:
@@ -85,6 +95,99 @@ def summarize_events(start: datetime, end: datetime) -> str:
     lines.append(f"Total tracked time: {total_secs/3600:.2f} hours")
 
     return "\n".join(lines)
+
+
+def _get_browser_history_section(start: datetime, end: datetime) -> list[str]:
+    """Generate the Browser History section from the BrowserHistory table."""
+    lines = []
+    try:
+        from database.models import BrowserHistory
+        session = SessionLocal()
+        rows = (session.query(BrowserHistory)
+                .filter(BrowserHistory.timestamp >= start,
+                        BrowserHistory.timestamp <= end)
+                .order_by(BrowserHistory.timestamp.desc())
+                .limit(50).all())
+        session.close()
+
+        if not rows:
+            return []
+
+        # Aggregate by domain
+        domain_map = {}  # domain → {site_name, visits, category, urls}
+        for r in rows:
+            d = r.domain or 'Unknown'
+            if d not in domain_map:
+                domain_map[d] = {
+                    'site_name': r.site_name or d,
+                    'visits': 0,
+                    'category': r.category or 'Browsing',
+                    'urls': [],
+                }
+            domain_map[d]['visits'] += 1
+            if r.url and len(domain_map[d]['urls']) < 3:
+                title = (r.title or r.url)[:50]
+                domain_map[d]['urls'].append({
+                    'title': title,
+                    'url': r.url[:80],
+                    'time': r.timestamp.strftime('%H:%M') if r.timestamp else '',
+                })
+
+        lines.append("\n🔍  BROWSER HISTORY")
+        lines.append("-" * 70)
+        lines.append(f"  {'Site':<25} {'Visits':>6}  {'Category':<20}")
+        lines.append(f"  {'─' * 25} {'─' * 6}  {'─' * 20}")
+
+        for domain, info in sorted(domain_map.items(), key=lambda x: -x[1]['visits'])[:20]:
+            name = info['site_name'][:25]
+            lines.append(f"  {name:<25} {info['visits']:>6}  {info['category']:<20}")
+            # Show up to 3 pages visited
+            for u in info['urls']:
+                title = u['title'][:45]
+                lines.append(f"    └ [{u['time']}] {title}")
+                if u['url'] != u['title']:
+                    url_short = u['url'][:65]
+                    lines.append(f"      {url_short}")
+
+    except Exception as e:
+        pass  # BrowserHistory table may not exist on older DBs
+    return lines
+
+
+def _get_file_edits_section(start: datetime, end: datetime) -> list[str]:
+    """Generate the Files Edited section from the FileEdit table with IDE info."""
+    lines = []
+    try:
+        from database.models import FileEdit
+        session = SessionLocal()
+        today = start.strftime('%Y-%m-%d')
+        rows = (session.query(FileEdit)
+                .filter(FileEdit.timestamp >= start,
+                        FileEdit.timestamp <= end)
+                .order_by(FileEdit.duration_sec.desc())
+                .limit(20).all())
+        session.close()
+
+        if not rows:
+            return []
+
+        lines.append("\n💻  FILES EDITED IN CODING")
+        lines.append("-" * 80)
+        lines.append(f"  {'File':<30} {'IDE':<14} {'Project':<16} {'Lang':<10} {'Time':>8}")
+        lines.append(f"  {'─' * 30} {'─' * 14} {'─' * 16} {'─' * 10} {'─' * 8}")
+
+        for r in rows:
+            fname = (r.file_name or r.file_path or 'unknown')[:30]
+            editor = (r.editor or '-')[:14]
+            project = (r.project or '-')[:16]
+            lang = (r.language or '-')[:10]
+            mins = (r.duration_sec or 0) / 60.0
+            time_str = f"{mins:5.1f} min"
+            lines.append(f"  {fname:<30} {editor:<14} {project:<16} {lang:<10} {time_str:>8}")
+
+    except Exception:
+        pass  # FileEdit table may not exist on older DBs
+    return lines
 
 
 def generate_markdown(start: datetime, end: datetime, out_folder: str):
@@ -113,7 +216,7 @@ def generate_docx(start: datetime, end: datetime, out_folder: str):
 
     for line in summary.split('\n'):
         p = doc.add_paragraph(line)
-        if line.startswith('🗂') or line.startswith('🌐') or line.startswith('💻') or line.startswith('🔀'):
+        if line.startswith('🗂') or line.startswith('🌐') or line.startswith('💻') or line.startswith('🔀') or line.startswith('🔍'):
             p.runs[0].bold = True if p.runs else False
 
     fname = os.path.join(out_folder, f"report_{start.date()}_{end.date()}.docx")
@@ -143,7 +246,8 @@ def generate_pdf(start: datetime, end: datetime, out_folder: str):
             y = 770
             c.setFont("Courier", 8)
         # Highlight section headers
-        if line.startswith('🗂') or line.startswith('🌐') or line.startswith('💻') or line.startswith('🔀'):
+        section_markers = ('🗂', '🌐', '💻', '🔀', '🔍')
+        if any(line.startswith(m) for m in section_markers):
             c.setFont("Helvetica-Bold", 9)
             c.setFillColor(colors.HexColor('#1E90FF'))
         else:

@@ -6,6 +6,7 @@ from tracker.tracker import ActivityTracker
 from tracker.git_watcher import GitWatcher
 from tracker.file_watcher import FileEditWatcher
 from tracker.search_extractor import SearchExtractor
+from tracker.browser_history import BrowserHistoryTracker
 from ocr.screen_capture import ScreenCaptureWorker, is_consent_granted, grant_consent, revoke_consent
 import os
 import sys
@@ -39,6 +40,7 @@ git_watcher   = GitWatcher(interval=30)
 screen_worker = ScreenCaptureWorker(interval=30)
 file_watcher  = FileEditWatcher(interval=5.0)
 search_ext    = SearchExtractor(interval=5.0)
+browser_hist  = BrowserHistoryTracker(interval=300.0)  # Read browser history every 5 min
 
 
 @app.on_event("startup")
@@ -49,6 +51,7 @@ def startup():
     screen_worker.start()  # Only activates if consent is granted
     file_watcher.start()
     search_ext.start()
+    browser_hist.start()
 
 
 @app.on_event("shutdown")
@@ -64,6 +67,7 @@ def shutdown():
     screen_worker.stop()
     file_watcher.stop()
     search_ext.stop()
+    browser_hist.stop()
 
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -566,5 +570,58 @@ def api_projects_summary(days: int = 7):
             'file_count': len(v['files']),
         } for k, v in sorted(proj_map.items(), key=lambda x: -x[1]['seconds'])]
         return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ── Browser History API ───────────────────────────────────────────────────────
+
+@app.get('/api/browser/history')
+def api_browser_history(days: int = 1, limit: int = 100):
+    """Return full browser history with real URLs from Chrome/Edge/Firefox."""
+    try:
+        data = browser_hist.get_history(days=days, limit=limit)
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/browser/top-sites')
+def api_browser_top_sites(days: int = 7):
+    """Return most visited sites aggregated by domain."""
+    try:
+        data = browser_hist.get_top_sites(days=days)
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/files/detailed')
+def api_files_detailed(days: int = 7, limit: int = 30):
+    """Return file edits with IDE/editor info."""
+    try:
+        session = SessionLocal()
+        from database.models import FileEdit
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(FileEdit)
+                .filter(FileEdit.timestamp >= since)
+                .order_by(FileEdit.duration_sec.desc())
+                .limit(limit).all())
+        seen = {}
+        for r in rows:
+            key = r.file_name or r.file_path
+            if key not in seen:
+                seen[key] = {
+                    'file': r.file_name,
+                    'path': r.file_path,
+                    'project': r.project,
+                    'language': r.language,
+                    'editor': r.editor,
+                    'duration_min': round((r.duration_sec or 0) / 60, 1),
+                    'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+                    'date': r.session_date,
+                }
+        session.close()
+        return JSONResponse(list(seen.values()))
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)

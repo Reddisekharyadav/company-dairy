@@ -357,7 +357,9 @@ import webbrowser
 
 def open_dashboard(_=None):
     try:
-        webbrowser.open('http://127.0.0.1:8000')
+        from ui.status_widget import get_server_port
+        port = get_server_port()
+        webbrowser.open(f'http://127.0.0.1:{port}')
     except Exception as e:
         log.warning('Could not open browser dashboard: %s', e)
 
@@ -365,10 +367,11 @@ def open_dashboard(_=None):
 def on_exit(icon, _=None):
     log.info('User requested exit')
     try:
-        from backend.app import tracker, git_watcher, screen_worker
+        from backend.app import tracker, git_watcher, screen_worker, browser_hist
         tracker.stop()
         git_watcher.stop()
         screen_worker.stop()
+        browser_hist.stop()
     except Exception as e:
         log.warning('Shutdown error: %s', e)
     # Destroy the floating widget
@@ -416,8 +419,8 @@ def _start_web_server():
         # crashes on Python 3.14 due to a changed logging formatter API.
         uvicorn.run(
             app,
-            host="0.0.0.0",
-            port=8000,
+            host="127.0.0.1",
+            port=5678,
             log_level="error",
             log_config=None,
         )
@@ -493,8 +496,9 @@ def main(argv=None):
     # Wait a moment for backend to initialize tracker + screen_worker
     time.sleep(1.5)
     try:
-        from ui.status_widget import launch_widget
+        from ui.status_widget import launch_widget, set_server_port
         from backend.app import tracker as _tracker, screen_worker as _sw
+        set_server_port(5678)
 
         def _widget_exit_callback():
             """Called when the user clicks Kill in the floating widget."""
@@ -550,10 +554,11 @@ def main(argv=None):
         icon.run()
     finally:
         try:
-            from backend.app import tracker, git_watcher, screen_worker
+            from backend.app import tracker, git_watcher, screen_worker, browser_hist
             tracker.stop()
             git_watcher.stop()
             screen_worker.stop()
+            browser_hist.stop()
         except Exception:
             pass
         try:
