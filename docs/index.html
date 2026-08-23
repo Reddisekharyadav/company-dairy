@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkSense AI — Intelligent Activity Tracker for Teams</title>
+    <meta name="description" content="WorkSense AI is a privacy-first, offline desktop activity tracker for Windows, macOS and Linux. Track productivity, browser history, code edits, and generate automatic daily reports.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --bg-card-hover: #1f2a3e;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f59e0b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: rgba(255, 255, 255, 0.06);
+            --gradient-hero: linear-gradient(135deg, #0a0e17 0%, #111827 50%, #0f172a 100%);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated background ────────────────────────── */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image:
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        .bg-glow {
+            position: fixed; z-index: 0; pointer-events: none;
+            width: 600px; height: 600px; border-radius: 50%;
+            filter: blur(120px); opacity: 0.15;
+        }
+        .bg-glow-1 { top: -200px; left: -100px; background: var(--accent); }
+        .bg-glow-2 { bottom: -200px; right: -100px; background: var(--accent-purple); }
+
+        /* ── Navigation ─────────────────────────────────── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: rgba(10, 14, 23, 0.8);
+            border-bottom: 1px solid var(--border);
+            transition: background 0.3s;
+        }
+        .nav-inner {
+            max-width: 1200px; margin: 0 auto;
+            padding: 0 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 70px;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            font-weight: 800; font-size: 1.3rem;
+            text-decoration: none; color: var(--text-primary);
+        }
+        .nav-logo-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+            display: grid; place-items: center;
+            font-size: 1.1rem; font-weight: 900; color: white;
+        }
+        .nav-links { display: flex; gap: 2rem; list-style: none; }
+        .nav-links a {
+            color: var(--text-secondary); text-decoration: none;
+            font-size: 0.9rem; font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-cta {
+            padding: 0.5rem 1.2rem; border-radius: 8px;
+            background: var(--accent); color: white;
+            text-decoration: none; font-weight: 600; font-size: 0.85rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .nav-cta:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        /* ── Hero ────────────────────────────────────────── */
+        .hero {
+            position: relative; z-index: 1;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center;
+            padding: 8rem 2rem 4rem;
+            background: var(--gradient-hero);
+        }
+        .hero-content { max-width: 800px; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 16px; border-radius: 99px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 0.8rem; font-weight: 600; color: var(--accent);
+            margin-bottom: 1.5rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 50%, var(--accent-green) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 1.15rem; color: var(--text-secondary);
+            max-width: 600px; margin: 0 auto 2.5rem;
+            animation: fadeInUp 1s ease-out;
+        }
+        .hero-buttons {
+            display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+            animation: fadeInUp 1.2s ease-out;
+        }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.8rem 1.8rem; border-radius: 12px;
+            font-weight: 700; font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer; border: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+            color: white;
+            box-shadow: 0 4px 24px var(--accent-glow);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+        }
+        .hero-platforms {
+            margin-top: 2rem;
+            font-size: 0.85rem; color: var(--text-muted);
+            animation: fadeInUp 1.4s ease-out;
+        }
+        .hero-platforms span { margin: 0 0.5rem; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Section base ────────────────────────────────── */
+        section { position: relative; z-index: 1; padding: 6rem 2rem; }
+        .section-inner { max-width: 1200px; margin: 0 auto; }
+        .section-label {
+            display: inline-block;
+            font-size: 0.75rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 2px;
+            color: var(--accent); margin-bottom: 0.8rem;
+        }
+        .section-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800; margin-bottom: 1rem;
+        }
+        .section-desc {
+            font-size: 1.1rem; color: var(--text-secondary);
+            max-width: 650px; margin-bottom: 3rem;
+        }
+        .section-center { text-align: center; }
+        .section-center .section-desc { margin-left: auto; margin-right: auto; }
+
+        /* ── Features grid ───────────────────────────────── */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(59, 130, 246, 0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        .feature-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: grid; place-items: center;
+            font-size: 1.4rem; margin-bottom: 1rem;
+        }
+        .fi-blue   { background: rgba(59, 130, 246, 0.15); }
+        .fi-green  { background: rgba(16, 185, 129, 0.15); }
+        .fi-purple { background: rgba(139, 92, 246, 0.15); }
+        .fi-orange { background: rgba(245, 158, 11, 0.15); }
+        .fi-red    { background: rgba(239, 68, 68, 0.15); }
+        .fi-cyan   { background: rgba(6, 182, 212, 0.15); }
+        .feature-card h3 {
+            font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;
+        }
+        .feature-card p {
+            font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;
+        }
+
+        /* ── Screenshots carousel ────────────────────────── */
+        .screenshots-section { background: var(--bg-secondary); }
+        .screenshots-tabs {
+            display: flex; gap: 0.5rem; flex-wrap: wrap;
+            margin-bottom: 2rem; justify-content: center;
+        }
+        .ss-tab {
+            padding: 0.5rem 1.2rem; border-radius: 8px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); cursor: pointer;
+            font-size: 0.85rem; font-weight: 600;
+            transition: all 0.2s;
+        }
+        .ss-tab:hover, .ss-tab.active {
+            background: var(--accent); color: white;
+            border-color: var(--accent);
+        }
+        .ss-display {
+            position: relative;
+            border-radius: 16px; overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            max-width: 1100px; margin: 0 auto;
+        }
+        .ss-bar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 12px 16px;
+            background: #161e2e; border-bottom: 1px solid var(--border);
+        }
+        .ss-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .ss-dot-r { background: #ef4444; }
+        .ss-dot-y { background: #f59e0b; }
+        .ss-dot-g { background: #10b981; }
+        .ss-bar-title {
+            flex: 1; text-align: center;
+            font-size: 0.8rem; color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .ss-img-wrap { position: relative; }
+        .ss-img-wrap img {
+            width: 100%; display: block;
+            transition: opacity 0.4s ease;
+        }
+        .ss-img-wrap img.hidden { display: none; }
+
+        /* ── How it works ────────────────────────────────── */
+        .how-it-works-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 2rem;
+        }
+        .hiw-step {
+            text-align: center;
+            padding: 2rem 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            transition: all 0.3s;
+        }
+        .hiw-step:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.15);
+        }
+        .hiw-number {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+            display: inline-grid; place-items: center;
+            font-size: 1.3rem; font-weight: 800; color: white;
+            margin-bottom: 1rem;
+        }
+        .hiw-step h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .hiw-step p  { font-size: 0.9rem; color: var(--text-secondary); }
+
+        /* ── Download section ────────────────────────────── */
+        .download-section {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, #0f172a 100%);
+        }
+        .download-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .dl-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .dl-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.2);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        .dl-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .dl-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .dl-card p  {
+            font-size: 0.85rem; color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+        .dl-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.7rem 1.6rem; border-radius: 10px;
+            background: var(--accent); color: white;
+            text-decoration: none; font-weight: 600; font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .dl-btn:hover {
+            background: #2563eb;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        /* ── SmartScreen notice ───────────────────────────── */
+        .smartscreen-notice {
+            max-width: 800px; margin: 3rem auto 0;
+            padding: 1.5rem 2rem;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 12px;
+            font-size: 0.9rem; color: var(--text-secondary);
+        }
+        .smartscreen-notice strong { color: var(--accent-orange); }
+        .smartscreen-notice code {
+            background: rgba(255,255,255,0.06); padding: 2px 6px;
+            border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        /* ── About / Contact ─────────────────────────────── */
+        .about-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+        .about-info h3 {
+            font-size: 1.6rem; font-weight: 800; margin-bottom: 1rem;
+        }
+        .about-info p {
+            font-size: 1rem; color: var(--text-secondary);
+            margin-bottom: 1.5rem; line-height: 1.8;
+        }
+        .about-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .about-link {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.6rem 1.2rem; border-radius: 10px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-primary); text-decoration: none;
+            font-weight: 600; font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+        .about-link:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+        }
+        .about-stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-card .stat-number {
+            font-size: 2rem; font-weight: 900; color: var(--accent);
+        }
+        .stat-card .stat-label {
+            font-size: 0.8rem; color: var(--text-muted);
+            margin-top: 0.3rem;
+        }
+
+        /* ── Footer ──────────────────────────────────────── */
+        footer {
+            position: relative; z-index: 1;
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted); font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ── Responsive ──────────────────────────────────── */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .about-grid { grid-template-columns: 1fr; }
+            .hero { padding: 7rem 1.5rem 3rem; }
+            .screenshots-tabs { gap: 0.3rem; }
+            .ss-tab { padding: 0.4rem 0.8rem; font-size: 0.75rem; }
+        }
+
+        /* ── Scroll reveal ───────────────────────────────── */
+        .reveal {
+            opacity: 0; transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- ── Nav ──────────────────────────────────────── -->
+    <nav>
+        <div class="nav-inner">
+            <a href="#" class="nav-logo">
+                <div class="nav-logo-icon">W</div>
+                WorkSense AI
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#screenshots">Live Demo</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#download">Download</a></li>
+                <li><a href="#about">Contact</a></li>
+            </ul>
+            <a href="#download" class="nav-cta">⬇ Download Free</a>
+        </div>
+    </nav>
+
+    <!-- ── Hero ─────────────────────────────────────── -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge"><span class="dot"></span> v2.0 — Now with Browser History Tracking</div>
+            <h1>Know exactly what<br>you <span class="gradient-text">worked on</span> today.</h1>
+            <p>WorkSense AI silently tracks your desktop activity, browser history, code edits, and generates beautiful daily reports — all 100% offline, no cloud, no server.</p>
+            <div class="hero-buttons">
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest" class="btn btn-primary" target="_blank">⬇ Download for Free</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy" class="btn btn-secondary" target="_blank">⭐ View on GitHub</a>
+            </div>
+            <p class="hero-platforms">
+                Available for <span>🪟 Windows</span> <span>🍎 macOS</span> <span>🐧 Linux</span>
+            </p>
+        </div>
+    </section>
+
+    <!-- ── Features ─────────────────────────────────── -->
+    <section id="features">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Features</span>
+            <h2 class="section-title">Everything you need to<br>track your workday</h2>
+            <p class="section-desc">WorkSense runs silently in the background and gives you detailed reports of your computer activity — perfect for researchers, developers, and remote teams.</p>
+        </div>
+        <div class="section-inner">
+            <div class="features-grid">
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-blue">🖥️</div>
+                    <h3>Active Window Tracking</h3>
+                    <p>Automatically detects which application and window title you are using, categorized by type — coding, browsing, communication, and more.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-green">🌐</div>
+                    <h3>Browser History</h3>
+                    <p>Captures browsing history from Chrome, Edge, and Firefox with site names, URLs, visit counts, and top sites — like a private research log.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-purple">💻</div>
+                    <h3>Code File Tracking</h3>
+                    <p>Tracks every file you edit in VS Code, JetBrains, and other IDEs. See which files, languages, and projects you worked on.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-orange">📸</div>
+                    <h3>Periodic Screen Captures</h3>
+                    <p>Takes periodic screenshots (with your consent) to give you a visual timeline of your day. All stored locally — never uploaded.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-red">📊</div>
+                    <h3>Automatic Reports</h3>
+                    <p>Generates beautiful PDF, Markdown, and DOCX reports at end of day. Email them automatically to your manager or team.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-cyan">🔒</div>
+                    <h3>100% Offline & Private</h3>
+                    <p>Everything runs locally on your machine. No cloud, no server, no account required. Your data stays on your computer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Screenshots ──────────────────────────────── -->
+    <section id="screenshots" class="screenshots-section">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Live Demo</span>
+            <h2 class="section-title">See it in action</h2>
+            <p class="section-desc">Real screenshots from a live WorkSense session showing all dashboard tabs and features.</p>
+        </div>
+        <div class="section-inner reveal">
+            <div class="screenshots-tabs" id="ss-tabs">
+                <button class="ss-tab active" data-img="today">📅 Today</button>
+                <button class="ss-tab" data-img="browser">🌐 Browser History</button>
+                <button class="ss-tab" data-img="researcher">🔬 Researcher</button>
+                <button class="ss-tab" data-img="dev_files">💻 Dev Files</button>
+                <button class="ss-tab" data-img="company">🏢 Company</button>
+                <button class="ss-tab" data-img="reports">📊 Reports</button>
+            </div>
+            <div class="ss-display">
+                <div class="ss-bar">
+                    <span class="ss-dot ss-dot-r"></span>
+                    <span class="ss-dot ss-dot-y"></span>
+                    <span class="ss-dot ss-dot-g"></span>
+                    <span class="ss-bar-title" id="ss-title">WorkSense Dashboard — Today</span>
+                </div>
+                <div class="ss-img-wrap" id="ss-wrap">
+                    <img src="screenshots/dashboard_today.png" alt="Today Dashboard" id="ss-today">
+                    <img src="screenshots/dashboard_browser.png" alt="Browser History" id="ss-browser" class="hidden">
+                    <img src="screenshots/dashboard_researcher.png" alt="Researcher" id="ss-researcher" class="hidden">
+                    <img src="screenshots/dashboard_dev_files.png" alt="Dev Files" id="ss-dev_files" class="hidden">
+                    <img src="screenshots/dashboard_company.png" alt="Company" id="ss-company" class="hidden">
+                    <img src="screenshots/dashboard_reports.png" alt="Reports" id="ss-reports" class="hidden">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── How it works ─────────────────────────────── -->
+    <section id="how-it-works">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">How It Works</span>
+            <h2 class="section-title">Up and running in 60 seconds</h2>
+            <p class="section-desc">No installation wizard, no accounts, no setup. Just download and double-click.</p>
+        </div>
+        <div class="section-inner">
+            <div class="how-it-works-grid">
+                <div class="hiw-step reveal">
+                    <div class="hiw-number">1</div>
+                    <h3>Download</h3>
+                    <p>Grab the single executable for your OS from the releases page. No installer needed.</p>
+                </div>
+                <div class="hiw-step reveal">
+                    <div class="hiw-number">2</div>
+                    <h3>Run</h3>
+                    <p>Double-click WorkSense.exe. It starts tracking in the background and shows a small floating widget.</p>
+                </div>
+                <div class="hiw-step reveal">
+                    <div class="hiw-number">3</div>
+                    <h3>Dashboard</h3>
+                    <p>Open the local dashboard at <code style="color: var(--accent);">localhost:5678</code> to see your activity in real time.</p>
+                </div>
+                <div class="hiw-step reveal">
+                    <div class="hiw-number">4</div>
+                    <h3>Reports</h3>
+                    <p>At end of day, WorkSense generates a PDF report and optionally emails it to your team.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Download ──────────────────────────────────── -->
+    <section id="download" class="download-section">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Download</span>
+            <h2 class="section-title">Get WorkSense for your platform</h2>
+            <p class="section-desc">One standalone executable. No Python, no dependencies, no server needed.</p>
+        </div>
+        <div class="section-inner">
+            <div class="download-cards">
+                <div class="dl-card reveal">
+                    <div class="dl-icon">🪟</div>
+                    <h3>Windows</h3>
+                    <p>Windows 10 / 11 (64-bit)</p>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-Windows.exe" class="dl-btn">⬇ Download .exe</a>
+                </div>
+                <div class="dl-card reveal">
+                    <div class="dl-icon">🍎</div>
+                    <h3>macOS</h3>
+                    <p>macOS 12+ (Apple Silicon & Intel)</p>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-macOS" class="dl-btn">⬇ Download</a>
+                </div>
+                <div class="dl-card reveal">
+                    <div class="dl-icon">🐧</div>
+                    <h3>Linux</h3>
+                    <p>Ubuntu 20.04+ / Fedora / Arch</p>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-Linux" class="dl-btn">⬇ Download</a>
+                </div>
+            </div>
+            <div class="smartscreen-notice reveal">
+                <strong>⚠️ Windows SmartScreen Notice:</strong> Since WorkSense is an open-source project and not signed with a paid Microsoft certificate, Windows Defender SmartScreen may show a warning. This is normal for all unsigned apps.
+                <br><br>
+                <strong>How to run it:</strong> Click <code>More info</code> → then click <code>Run anyway</code>. The app is completely safe and open-source — you can inspect every line of code on GitHub.
+            </div>
+        </div>
+    </section>
+
+    <!-- ── About / Contact ──────────────────────────── -->
+    <section id="about">
+        <div class="section-inner reveal">
+            <div class="about-grid">
+                <div class="about-info">
+                    <span class="section-label">Developer</span>
+                    <h3>Built by Reddi Sekhar Yadav</h3>
+                    <p>Full-stack developer passionate about building productivity tools and AI-powered applications. WorkSense is an open-source project built to help teams and researchers track their work transparently.</p>
+                    <div class="about-links">
+                        <a href="https://myportfolio.sekhar.tech/" class="about-link" target="_blank">🌐 Portfolio</a>
+                        <a href="https://github.com/Reddisekharyadav" class="about-link" target="_blank">💻 GitHub</a>
+                        <a href="https://github.com/Reddisekharyadav/company-dairy" class="about-link" target="_blank">📂 Source Code</a>
+                    </div>
+                </div>
+                <div class="about-stats">
+                    <div class="stat-card">
+                        <div class="stat-number">6+</div>
+                        <div class="stat-label">Dashboard Tabs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">Platforms</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">0</div>
+                        <div class="stat-label">Cloud Dependencies</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Open Source</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Footer ───────────────────────────────────── -->
+    <footer>
+        <p>© 2024–2026 WorkSense AI by <a href="https://myportfolio.sekhar.tech/" target="_blank">Reddi Sekhar Yadav</a>. Open source under MIT License.</p>
+        <p style="margin-top: 0.5rem;">
+            <a href="https://github.com/Reddisekharyadav/company-dairy" target="_blank">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/Reddisekharyadav/company-dairy/releases" target="_blank">Releases</a>
+            &nbsp;·&nbsp;
+            <a href="https://myportfolio.sekhar.tech/" target="_blank">Portfolio</a>
+        </p>
+    </footer>
+
+    <script>
+        // ── Screenshot tab switcher ──
+        const tabs = document.querySelectorAll('.ss-tab');
+        const titleEl = document.getElementById('ss-title');
+        const titles = {
+            today: 'WorkSense Dashboard — Today',
+            browser: 'WorkSense Dashboard — Browser History',
+            researcher: 'WorkSense Dashboard — Researcher',
+            dev_files: 'WorkSense Dashboard — Dev Files',
+            company: 'WorkSense Dashboard — Company',
+            reports: 'WorkSense Dashboard — Reports',
+        };
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const img = tab.dataset.img;
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.ss-img-wrap img').forEach(i => i.classList.add('hidden'));
+                document.getElementById('ss-' + img).classList.remove('hidden');
+                titleEl.textContent = titles[img] || 'WorkSense Dashboard';
+            });
+        });
+
+        // ── Scroll reveal ──
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
