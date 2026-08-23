@@ -197,6 +197,23 @@ def _get_edge_history_paths() -> list[Path]:
     return paths
 
 
+def _get_brave_history_paths() -> list[Path]:
+    """Return possible Brave history DB paths."""
+    system = platform.system()
+    paths = []
+    if system == 'Windows':
+        local = os.environ.get('LOCALAPPDATA', '')
+        if local:
+            paths.append(Path(local) / 'BraveSoftware' / 'Brave-Browser' / 'User Data' / 'Default' / 'History')
+    elif system == 'Darwin':
+        home = Path.home()
+        paths.append(home / 'Library' / 'Application Support' / 'BraveSoftware' / 'Brave-Browser' / 'Default' / 'History')
+    elif system == 'Linux':
+        home = Path.home()
+        paths.append(home / '.config' / 'BraveSoftware' / 'Brave-Browser' / 'Default' / 'History')
+    return paths
+
+
 def _get_firefox_history_paths() -> list[Path]:
     """Return possible Firefox history DB paths."""
     system = platform.system()
@@ -433,6 +450,30 @@ class BrowserHistoryTracker:
                     visit_count=entry['visit_count'],
                     duration_sec=0.0,
                     browser='Edge',
+                    category=_get_category(domain),
+                    session_date=entry['timestamp'].strftime('%Y-%m-%d'),
+                )
+                session.add(bh)
+                new_count += 1
+
+        # ── Brave ─────────────────────────────────────────────────────────────
+        for db_path in _get_brave_history_paths():
+            entries = _read_chromium_history(db_path, since)
+            for entry in entries:
+                if self._is_duplicate(session, entry['url'], entry['timestamp']):
+                    continue
+                domain = _extract_domain(entry['url'])
+                if not domain:
+                    continue
+                bh = BrowserHistory(
+                    timestamp=entry['timestamp'],
+                    url=entry['url'][:2048],
+                    title=entry['title'][:1024] if entry['title'] else None,
+                    site_name=_get_site_name(domain),
+                    domain=domain,
+                    visit_count=entry['visit_count'],
+                    duration_sec=0.0,
+                    browser='Brave',
                     category=_get_category(domain),
                     session_date=entry['timestamp'].strftime('%Y-%m-%d'),
                 )

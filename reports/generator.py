@@ -228,33 +228,67 @@ def generate_pdf(start: datetime, end: datetime, out_folder: str):
     summary = summarize_events(start, end)
     fname = os.path.join(out_folder, f"report_{start.date()}_{end.date()}.pdf")
     c = canvas.Canvas(fname, pagesize=letter)
+    width, height = letter
 
-    # Header
-    c.setFillColor(colors.HexColor('#1E90FF'))
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, 770, "WorkSense AI — Activity Report")
-    c.setFillColor(colors.black)
-    c.setFont("Helvetica", 9)
-    c.drawString(50, 752, f"Period: {start.strftime('%Y-%m-%d %H:%M')} to {end.strftime('%Y-%m-%d %H:%M')}")
-    c.drawString(50, 740, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    # Header Background
+    c.setFillColor(colors.HexColor('#F8FAFC'))
+    c.rect(0, height - 100, width, 100, fill=1, stroke=0)
+    
+    # Header Accent Line
+    c.setFillColor(colors.HexColor('#3B82F6'))
+    c.rect(0, height - 100, width, 4, fill=1, stroke=0)
 
-    y = 720
-    c.setFont("Courier", 8)
+    # Header Text
+    c.setFillColor(colors.HexColor('#0F172A'))
+    c.setFont("Helvetica-Bold", 24)
+    c.drawString(50, height - 45, "WorkSense AI Activity Report")
+    
+    c.setFillColor(colors.HexColor('#64748B'))
+    c.setFont("Helvetica", 10)
+    c.drawString(50, height - 65, f"Period: {start.strftime('%Y-%m-%d %H:%M')}  →  {end.strftime('%Y-%m-%d %H:%M')}")
+    c.drawString(50, height - 80, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    y = height - 130
+    c.setFont("Courier", 9)
     for line in summary.splitlines():
         if y < 50:
             c.showPage()
-            y = 770
-            c.setFont("Courier", 8)
-        # Highlight section headers
+            y = height - 50
+            c.setFont("Courier", 9)
+            
+        # Section headers
         section_markers = ('🗂', '🌐', '💻', '🔀', '🔍')
         if any(line.startswith(m) for m in section_markers):
-            c.setFont("Helvetica-Bold", 9)
-            c.setFillColor(colors.HexColor('#1E90FF'))
+            y -= 10  # Extra space before section
+            c.setFont("Helvetica-Bold", 12)
+            c.setFillColor(colors.HexColor('#1E293B'))
+            # Draw a light underline
+            c.setStrokeColor(colors.HexColor('#E2E8F0'))
+            c.line(50, y - 4, width - 50, y - 4)
+        elif line.startswith('─') or line.startswith('-') or line.startswith('='):
+            # Skip drawing raw divider lines, we draw custom ones above
+            continue
+        elif "Total tracked time:" in line:
+            y -= 15
+            c.setFont("Helvetica-Bold", 14)
+            c.setFillColor(colors.HexColor('#10B981'))  # Green accent
         else:
-            c.setFont("Courier", 8)
-            c.setFillColor(colors.black)
-        c.drawString(50, y, line.encode('ascii', 'replace').decode())
-        y -= 12
+            c.setFont("Courier", 9)
+            c.setFillColor(colors.HexColor('#334155'))
 
+        # Replace emojis that reportlab standard fonts can't render well
+        clean_line = line
+        for m in section_markers:
+            clean_line = clean_line.replace(m, '').strip()
+            
+        if clean_line:
+            c.drawString(50, y, clean_line.encode('ascii', 'replace').decode())
+        y -= 16
+
+    # Footer
+    c.setFont("Helvetica", 8)
+    c.setFillColor(colors.HexColor('#94A3B8'))
+    c.drawString(50, 30, "Generated automatically by WorkSense AI — 100% Offline Activity Tracking")
+    
     c.save()
     return fname
