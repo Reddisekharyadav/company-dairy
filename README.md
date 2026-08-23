@@ -85,6 +85,38 @@ Download the latest standalone executable for your platform — **no Python, no 
 
 ---
 
+---
+
+## 🔒 Data Protection & Privacy
+
+WorkSense is designed from the ground up to respect your privacy and protect your data.
+
+- **100% Offline:** The application never makes outbound network requests to external servers. All data processing and report generation happens locally on your computer.
+- **Local Storage:** All tracking data, browser history, and screenshots are stored securely in a local SQLite database (`events.db`) and a local `screenshots/` folder within the app directory.
+- **Auto-Deletion (Data Retention):** To ensure your hard drive doesn't fill up and to protect old data, **WorkSense automatically deletes all database records and screenshots older than 30 days** every time it starts. Your historical data is naturally purged.
+- **No Cloud Dependencies:** You do not need an account, and your activity is never uploaded anywhere unless you explicitly configure the SMTP emailer to send reports to your manager.
+
+---
+
+## 💻 OS-Specific Limitations
+
+WorkSense supports Windows, macOS, and Linux, but due to varying OS security models, please note the following requirements:
+
+### 🍎 macOS
+macOS has strict security and privacy controls.
+1. **Screen Recording Permission:** To capture periodic screenshots, macOS will prompt you to grant WorkSense "Screen Recording" permissions in *System Settings > Privacy & Security*. Without this, screenshots will be blank.
+2. **Accessibility Permission:** To track the active window title, macOS requires you to grant "Accessibility" permissions to the app.
+3. **Gatekeeper:** Since this is an open-source app and not signed with an Apple Developer ID, you must **Right-Click > Open** the app the first time to bypass the "Unidentified Developer" warning.
+
+### 🐧 Linux
+1. **Wayland vs X11:** WorkSense uses `xdotool` and `xprop` to track the active window. This works perfectly on **X11** sessions. However, on **Wayland** (the default on newer Ubuntu/Fedora releases), the strict security model prevents apps from reading other window titles. For full tracking, you must log in to an X11 session.
+2. **Execution:** Ensure the downloaded binary is marked as executable (`chmod +x WorkSense-Linux`).
+
+### 🪟 Windows
+1. **SmartScreen Warning:** Windows Defender SmartScreen will flag the `.exe` as an "Unrecognized app" because it is not signed with an Extended Validation (EV) Code Signing certificate. Click **"More info"** → **"Run anyway"** to bypass it.
+
+---
+
 ## 🔧 Development Setup
 
 ```bash
