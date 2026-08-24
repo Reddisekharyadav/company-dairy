@@ -25,7 +25,10 @@ SCREENSHOT_DIR = _appdata_dir() / 'screenshots'
 
 def is_consent_granted() -> bool:
     """Check if user has granted screen capture consent."""
-    return CONSENT_FILE.exists() and CONSENT_FILE.read_text().strip() == 'granted'
+    try:
+        return CONSENT_FILE.exists() and CONSENT_FILE.read_text().strip() == 'granted'
+    except Exception:
+        return False
 
 
 def grant_consent():
@@ -111,16 +114,33 @@ class ScreenCaptureWorker:
 
                 except Exception as e:
                     log.debug('Screen capture failed: %s', e)
+                    # Create a blank placeholder image so the UI shows active tracking
+                    try:
+                        from PIL import Image, ImageDraw
+                        thumb = Image.new('RGB', (640, 360), color=(30, 45, 69))
+                        d = ImageDraw.Draw(thumb)
+                        d.text((10, 10), "Screen Locked / Access Denied", fill=(255, 255, 255))
+                        fname = f"screen_{ts.strftime('%Y%m%d_%H%M%S')}.jpg"
+                        fpath = SCREENSHOT_DIR / fname
+                        thumb.save(str(fpath), 'JPEG', quality=60)
+                        screenshot_path = str(fpath)
+                        ocr_text = f"[Screen capture failed: {e}]"
+                    except Exception as ex:
+                        log.error("Failed to create placeholder image: %s", ex)
 
                 if ocr_text or screenshot_path:
-                    o = OCRText(
-                        timestamp=ts,
-                        source=title or proc or 'unknown',
-                        text=(ocr_text or '')[:4000],  # limit to 4KB
-                        screenshot_path=screenshot_path,
-                    )
-                    session.add(o)
-                    session.commit()
+                    try:
+                        o = OCRText(
+                            timestamp=ts,
+                            source=title or proc or 'unknown',
+                            text=(ocr_text or '')[:4000],  # limit to 4KB
+                            screenshot_path=screenshot_path,
+                        )
+                        session.add(o)
+                        session.commit()
+                    except Exception as e:
+                        session.rollback()
+                        log.error('Database error in screen capture: %s', e)
 
                 time.sleep(self.interval)
         except Exception as e:
