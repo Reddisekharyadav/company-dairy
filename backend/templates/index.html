@@ -908,6 +908,8 @@ function startAutoRefresh() {
         // don't auto refresh heavy table
       } else if (activeTab === 'notes') {
         refreshNotes();
+      } else if (activeTab === 'reports') {
+        refreshScreenshots2();
       }
     }
   }, 30000); // 30 seconds
@@ -1119,7 +1121,7 @@ async function refreshScreenshots() {
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
       return `<div class="screenshot-card" title="${s.source}">
-        <img src="/api/screenshot/${s.id}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
+        <img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
         <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
       </div>`;
     }).join('')}</div>`;
@@ -1535,7 +1537,7 @@ async function refreshScreenshots2() {
     if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="screenshot-card"><img src="/api/screenshot/${s.id}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
+      return `<div class="screenshot-card"><img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
         <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div></div>`;
     }).join('')}</div>`;
   } catch(e) {}
