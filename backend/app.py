@@ -625,3 +625,78 @@ def api_files_detailed(days: int = 7, limit: int = 30):
         return JSONResponse(list(seen.values()))
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ── Daily Notes API ───────────────────────────────────────────────────────────
+
+@app.post('/api/notes')
+async def api_create_note(request: Request):
+    """Save a new daily work note (typed or voice)."""
+    try:
+        body = await request.json()
+        content = (body.get('content') or '').strip()
+        if not content:
+            return JSONResponse({'error': 'Content is required'}, status_code=400)
+        source = body.get('source', 'typed')
+        category = body.get('category')
+
+        from database.models import DailyNote
+        session = SessionLocal()
+        note = DailyNote(
+            timestamp=datetime.now(),
+            date=datetime.now().strftime('%Y-%m-%d'),
+            content=content[:4000],
+            source=source if source in ('typed', 'voice') else 'typed',
+            category=category[:64] if category else None,
+        )
+        session.add(note)
+        session.commit()
+        note_id = note.id
+        session.close()
+        return JSONResponse({'status': 'saved', 'id': note_id})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/notes')
+def api_get_notes(days: int = 7, limit: int = 100):
+    """Return daily notes for the last N days."""
+    try:
+        from database.models import DailyNote
+        session = SessionLocal()
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(DailyNote)
+                .filter(DailyNote.timestamp >= since)
+                .order_by(DailyNote.timestamp.desc())
+                .limit(limit).all())
+        data = [{
+            'id': r.id,
+            'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+            'date': r.date,
+            'content': r.content,
+            'source': r.source,
+            'category': r.category,
+        } for r in rows]
+        session.close()
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.delete('/api/notes/{note_id}')
+def api_delete_note(note_id: int):
+    """Delete a daily note by ID."""
+    try:
+        from database.models import DailyNote
+        session = SessionLocal()
+        note = session.query(DailyNote).filter(DailyNote.id == note_id).first()
+        if not note:
+            session.close()
+            return JSONResponse({'error': 'Not found'}, status_code=404)
+        session.delete(note)
+        session.commit()
+        session.close()
+        return JSONResponse({'status': 'deleted'})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+

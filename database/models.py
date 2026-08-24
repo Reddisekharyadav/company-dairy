@@ -156,3 +156,17 @@ class BrowserHistory(Base):
     browser = Column(String(64), nullable=True)       # "Chrome", "Edge", "Firefox"
     category = Column(String(64), nullable=True)
     session_date = Column(String(20))
+
+
+# ── Daily Notes (User-entered work log) ───────────────────────────────────────
+
+class DailyNote(Base):
+    """User-entered daily work notes — typed or voice-recorded."""
+    __tablename__ = "daily_notes"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    date = Column(String(20), index=True)             # "2026-08-24"
+    content = Column(Text, nullable=False)
+    source = Column(String(16), default='typed')      # "typed" or "voice"
+    category = Column(String(64), nullable=True)      # optional user tag
+
