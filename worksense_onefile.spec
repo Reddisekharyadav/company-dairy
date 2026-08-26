@@ -32,10 +32,13 @@ hiddenimports += [
     'pystray._win32',
     # System monitoring
     'psutil',
-    # Image (tray icon drawing)
+    # Image & OCR (screen capture)
     'PIL',
     'PIL.Image',
     'PIL.ImageDraw',
+    'mss',
+    'pytesseract',
+    'io',
     # SQLAlchemy (database)
     'sqlalchemy',
     'sqlalchemy.orm',
