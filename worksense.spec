@@ -26,6 +26,9 @@ hiddenimports += collect_submodules('win32com')
 # Include our ui package (status widget + consent dialog)
 hiddenimports += ['ui', 'ui.status_widget']
 
+# Include dynamic imports used inside functions
+hiddenimports += ['mss', 'PIL', 'pytesseract', 'io']
+
 analysis = Analysis(
     ['main.py'],
     pathex=[project_root],
