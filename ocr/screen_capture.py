@@ -119,7 +119,16 @@ class ScreenCaptureWorker:
                         from PIL import Image, ImageDraw
                         thumb = Image.new('RGB', (640, 360), color=(30, 45, 69))
                         d = ImageDraw.Draw(thumb)
-                        d.text((10, 10), "Screen Locked / Access Denied", fill=(255, 255, 255))
+                        error_msg = (
+                            "Screen Capture Blocked by OS\n\n"
+                            "Possible reasons:\n"
+                            "1. Your screen is locked or asleep.\n"
+                            "2. macOS: System Settings -> Privacy & Security -> Screen Recording.\n"
+                            "3. Windows UAC prompt is active.\n"
+                            "4. App is running headless (no desktop access).\n\n"
+                            f"Error details: {str(e)[:100]}"
+                        )
+                        d.text((20, 20), error_msg, fill=(255, 255, 255), spacing=10)
                         fname = f"screen_{ts.strftime('%Y%m%d_%H%M%S')}.jpg"
                         fpath = SCREENSHOT_DIR / fname
                         thumb.save(str(fpath), 'JPEG', quality=60)
