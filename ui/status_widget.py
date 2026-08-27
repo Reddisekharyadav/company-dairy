@@ -61,23 +61,35 @@ def show_consent_dialog() -> bool:
     if is_screen_consent_granted():
         return True
 
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-
-    result = messagebox.askyesno(
-        title='WorkSense — Screen Recording Permission',
-        message=(
-            'WorkSense wants to take periodic screenshots\n'
-            'to help you track what you worked on.\n\n'
-            'Screenshots are stored ONLY on your computer\n'
-            'and never uploaded anywhere.\n\n'
-            'Allow screen recording?'
-        ),
-        icon='question',
-        parent=root,
+    import platform
+    
+    title = 'WorkSense — Productivity Tracking Permissions'
+    message = (
+        'WorkSense needs the following permissions to track your productivity:\n\n'
+        '1. Screen Capture: Periodically takes screenshots of your active work.\n'
+        '   These screenshots are strictly processed and stored locally on your device.\n'
+        '2. App & File Tracking: Monitors your active applications to categorize your work.\n\n'
+        'Your data is NEVER uploaded to any external server.\n\n'
+        'Do you grant WorkSense these permissions to operate?'
     )
-    root.destroy()
+
+    if platform.system() == 'Windows':
+        import ctypes
+        # Native MessageBoxW: MB_YESNO (4) | MB_ICONQUESTION (32) | MB_TOPMOST (0x40000)
+        style = 4 | 32 | 0x40000
+        response = ctypes.windll.user32.MessageBoxW(0, message, title, style)
+        result = (response == 6)  # IDYES
+    else:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        result = messagebox.askyesno(
+            title=title,
+            message=message,
+            icon='question',
+            parent=root,
+        )
+        root.destroy()
 
     if result:
         CONSENT_FILE.parent.mkdir(parents=True, exist_ok=True)

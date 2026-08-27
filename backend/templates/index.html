@@ -1630,13 +1630,14 @@ async function refreshNotes() {
 // ── Voice Recognition (Web Speech API) ──
 let recognition;
 function startVoiceNote() {
-  if (!('webkitSpeechRecognition' in window)) {
-    showToast('Voice recording is not supported in this browser.', 'error');
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    showToast('Voice recording is not supported in this browser. Please use Chrome or Edge.', 'error');
     return;
   }
   
   if (!recognition) {
-    recognition = new webkitSpeechRecognition();
+    recognition = new SpeechRec();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
