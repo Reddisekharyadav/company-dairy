@@ -410,17 +410,17 @@ def resume_tracking(_=None):
 
 
 # ── Web server thread ────────────────────────────────────────────────────────
-def _start_web_server():
+def _start_web_server(port):
     try:
         import uvicorn
         from backend.app import app
-        log.info('Starting Web Dashboard server on http://0.0.0.0:8000')
+        log.info('Starting Web Dashboard server on http://127.0.0.1:%s', port)
         # log_config=None prevents uvicorn from calling dictConfig which
         # crashes on Python 3.14 due to a changed logging formatter API.
         uvicorn.run(
             app,
             host="127.0.0.1",
-            port=5678,
+            port=port,
             log_level="error",
             log_config=None,
         )
@@ -487,8 +487,14 @@ def main(argv=None):
     except Exception as e:
         log.warning('Consent dialog error: %s', e)
 
+    # Find a free dynamic port to avoid conflicts
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        server_port = s.getsockname()[1]
+
     # Start the web server (which initializes DB, activity tracker, git watcher, screen worker)
-    web_thread = threading.Thread(target=_start_web_server, daemon=True)
+    web_thread = threading.Thread(target=_start_web_server, args=(server_port,), daemon=True)
     web_thread.start()
     _start_daily_report_scheduler()
 
@@ -498,7 +504,7 @@ def main(argv=None):
     try:
         from ui.status_widget import launch_widget, set_server_port
         from backend.app import tracker as _tracker, screen_worker as _sw
-        set_server_port(5678)
+        set_server_port(server_port)
 
         def _widget_exit_callback():
             """Called when the user clicks Kill in the floating widget."""
@@ -572,5 +578,15 @@ def main(argv=None):
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:
+        log.exception('WorkSense suffered a fatal crash: %s', e)
+        import platform
+        if platform.system() == 'Windows':
+            import ctypes
+            import traceback
+            error_msg = f"WorkSense suffered a fatal error and cannot start.\n\nError: {e}\n\nPlease check %APPDATA%\\WorkSense\\worksense.log for more details."
+            ctypes.windll.user32.MessageBoxW(0, error_msg, "WorkSense - Fatal Error", 0x10 | 0x40000) # MB_ICONERROR | MB_TOPMOST
+        sys.exit(1)
 
