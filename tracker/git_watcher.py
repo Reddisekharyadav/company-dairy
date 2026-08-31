@@ -2,12 +2,17 @@
 from threading import Thread, Event
 import time
 import os
-from git import Repo, InvalidGitRepositoryError, NoSuchPathError
 from database.session import SessionLocal
 from database.models import GitActivity
 from datetime import datetime
 import logging
 from config.settings import settings
+
+try:
+    from git import Repo, InvalidGitRepositoryError, NoSuchPathError
+    GIT_AVAILABLE = True
+except Exception:
+    GIT_AVAILABLE = False
 
 log = logging.getLogger('git_watcher')
 
@@ -42,6 +47,10 @@ class GitWatcher:
         return list(repos)
 
     def _run(self):
+        if not GIT_AVAILABLE:
+            log.warning('Git executable not found. Git activity tracking will be disabled.')
+            return
+
         session = SessionLocal()
         try:
             while not self._stop.is_set():
