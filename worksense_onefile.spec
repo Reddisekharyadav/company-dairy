@@ -75,6 +75,8 @@ hiddenimports += [
     'tracker.browser_history',
     'tracker.active_window',
     'tracker.categorizer',
+    'tracker.meeting_tracker',
+    'tracker.smart_summarizer',
     'reports.briefing',
     'watchdog',
     # .env support
@@ -158,4 +160,5 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,      # Silent — no console window
     icon=None,
+    version=os.path.join(project_root, 'version_info.txt'),
 )

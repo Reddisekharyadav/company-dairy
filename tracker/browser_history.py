@@ -379,9 +379,9 @@ class BrowserHistoryTracker:
 
         session = SessionLocal()
         try:
-            # On first run, look back 24 hours
+            # On first run, only track history from when the app started
             if self._last_read_time == 0:
-                self._last_read_time = (datetime.now() - timedelta(hours=24)).timestamp()
+                self._last_read_time = datetime.now().timestamp()
 
             while not self._stop.is_set():
                 try:

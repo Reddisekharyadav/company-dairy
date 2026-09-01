@@ -100,6 +100,7 @@
     @media(max-width:700px){ .g3,.g2,.g4{ grid-template-columns:1fr; } }
     .panel { display:none; }
     .panel.active { display:block; }
+    .hidden { display: none !important; }
 
     /* ── CARDS ── */
     .card {
@@ -363,6 +364,7 @@
         <div class="status-dot"></div>
         <span>Tracking Active</span>
       </div>
+      <button class="btn btn-ghost btn-sm" onclick="openSettings()" title="Settings">⚙️ Settings</button>
       <button class="btn btn-ghost btn-sm" onclick="refreshAll()" title="Refresh">↻ Refresh</button>
     </div>
   </div>
@@ -418,9 +420,42 @@
     <strong style="color:var(--accent2)">🖥️ Enable Screen Capture?</strong>
     <p style="color:var(--muted);font-size:.83rem;margin-top:4px">WorkSense AI can take screenshots every 30s to understand what you're doing. All data stays 100% local.</p>
   </div>
+  </div>
   <div style="display:flex;gap:10px">
     <button class="btn btn-success" onclick="grantConsent()">✓ Allow</button>
     <button class="btn btn-ghost" onclick="dismissConsent()">✕ No Thanks</button>
+  </div>
+</div>
+
+<!-- ── SETTINGS MODAL ────────────────────────────────────────────────────────── -->
+<div id="settings-modal" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div class="card" style="width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:1.1rem;color:var(--text);"><span class="icon">⚙️</span> Settings</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeSettings()" style="font-size:1.2rem;padding:0 8px;">✕</button>
+    </div>
+    
+    <h4 style="font-size:.85rem;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:6px;">Email Report Configuration</h4>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">Send Reports To (Email Address)</label>
+        <input type="email" id="set_email_to" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">SMTP Username (e.g. your Gmail)</label>
+        <input type="text" id="set_email_user" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">SMTP Password (App Password)</label>
+        <input type="password" id="set_email_pass" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
+        <div style="font-size:0.75rem;color:var(--muted2);margin-top:4px;">For Gmail, use an <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--accent);">App Password</a>.</div>
+      </div>
+    </div>
+    
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
   </div>
 </div>
 
@@ -483,6 +518,21 @@
       </div>
       <div class="activity-list" id="activity-feed">
         <div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">Loading activity…</div>
+      </div>
+    </div>
+  </div>
+  <!-- Meetings & AI Insights Row -->
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📅</span> Today's Meetings</div>
+      <div class="activity-list" id="meetings-list">
+        <div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No meetings detected yet</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> AI Work Insights</div>
+      <div class="activity-list" id="insights-list">
+        <div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">Insights will appear here as you work</div>
       </div>
     </div>
   </div>
@@ -717,8 +767,9 @@
       <div class="stat-label">files touched</div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">🔀</span> Last Commit</div>
-      <div id="co-commit" style="font-size:.82rem;font-family:'JetBrains Mono',monospace;color:var(--accent);line-height:1.5">—</div>
+      <div class="card-title"><span class="icon">📅</span> Time in Meetings</div>
+      <div class="stat-value stat-purple" id="co-meetings">—</div>
+      <div class="stat-label">minutes tracked</div>
     </div>
   </div>
 
@@ -729,8 +780,10 @@
       <div class="chart-wrap-lg"><canvas id="companyProjectChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">📅</span> Weekly Activity Pattern</div>
-      <div class="chart-wrap-lg"><canvas id="weeklyChart"></canvas></div>
+      <div class="card-title"><span class="icon">🔍</span> Top R&D/Browsing Topics</div>
+      <div id="company-research-list" style="margin-top:10px">
+        <div class="empty-state">No research data available.</div>
+      </div>
     </div>
   </div>
 
@@ -876,7 +929,7 @@ async function refreshAll() {
   await Promise.all([
     refreshFeed(), refreshCategories(), refreshWebsites(),
     refreshTimeline(), refreshStats(), refreshScreenshots(),
-    refreshSearchCount(),
+    refreshSearchCount(), refreshMeetings(), refreshInsights()
   ]);
 }
 
@@ -890,7 +943,7 @@ function switchTab(tab) {
   if (tab === 'research') { refreshResearch(); refreshSessions(); refreshSourcesChart(); }
   if (tab === 'browser')  { refreshBrowserHistory(); refreshBrowserTopSites(); }
   if (tab === 'dev')      { refreshDevFiles(); refreshHeatmap(); refreshLangChart(); refreshProjectChart(); }
-  if (tab === 'company')  { refreshCompanyProjects(); }
+  if (tab === 'company')  { refreshCompanyProjects(); refreshCompanyResearch(); refreshBriefing(); }
   if (tab === 'notes')    { refreshNotes(); }
   if (tab === 'reports')  { refreshScreenshots2(); }
 }
@@ -1125,6 +1178,48 @@ async function refreshScreenshots() {
         <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
       </div>`;
     }).join('')}</div>`;
+  } catch(e) {}
+}
+
+async function refreshMeetings() {
+  try {
+    const data = await fetch('/api/meetings?days=1').then(r => r.json());
+    const list = document.getElementById('meetings-list');
+    if (!data.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No meetings detected today</div>'; return; }
+    list.innerHTML = data.map(m => {
+      const t = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      const mins = Math.round((m.duration_sec || 0)/60);
+      return `<div class="activity-item">
+        <span class="activity-time">${t}</span>
+        <span class="activity-app" style="flex:1">${m.app}</span>
+        <span class="cat-badge" style="background:var(--surface3);color:var(--accent)">${mins} min</span>
+      </div>`;
+    }).join('');
+    
+    // Update company tab meeting stat
+    const coMeetings = document.getElementById('co-meetings');
+    if (coMeetings) {
+        const totalMins = data.reduce((s, m) => s + Math.round((m.duration_sec || 0)/60), 0);
+        coMeetings.textContent = totalMins;
+    }
+  } catch(e) {}
+}
+
+async function refreshInsights() {
+  try {
+    const data = await fetch('/api/insights?days=1').then(r => r.json());
+    const list = document.getElementById('insights-list');
+    if (!data.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">Insights will appear here as you work</div>'; return; }
+    list.innerHTML = data.slice(0, 10).map(i => {
+      const t = i.timestamp ? new Date(i.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="activity-item" style="flex-direction:column;align-items:flex-start">
+        <div style="display:flex;width:100%;margin-bottom:4px">
+          <span class="activity-time">${t}</span>
+          <span class="cat-badge" style="background:var(--surface3);color:var(--green);margin-left:auto">${i.topic || 'Insight'}</span>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text)">${i.insight_text}</div>
+      </div>`;
+    }).join('');
   } catch(e) {}
 }
 
@@ -1479,6 +1574,20 @@ async function refreshCompanyCharts() {
   } catch(e) {}
 }
 
+async function refreshCompanyResearch() {
+  try {
+    const sessions = await fetch('/api/research/sessions?days=7').then(r => r.json());
+    const list = document.getElementById('company-research-list');
+    if (!sessions.length) { list.innerHTML = '<div class="empty-state">No research activity in the last 7 days.</div>'; return; }
+    list.innerHTML = sessions.slice(0, 5).map(s => {
+      return `<div style="padding:10px;border-bottom:1px solid var(--border)">
+        <div style="font-weight:500;margin-bottom:4px;color:var(--text)">${s.topic}</div>
+        <div style="font-size:.8rem;color:var(--muted)">${s.query_count} queries • ${s.duration_min} mins spent reading/searching</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
 async function saveSession() {
   try {
     const data = await fetch('/api/save_session', {method:'POST'}).then(r => r.json());
@@ -1609,13 +1718,24 @@ async function refreshNotes() {
       dayNotes.forEach(n => {
         const time = n.timestamp ? new Date(n.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
         const sourceIcon = n.source === 'voice' ? '🎤' : '⌨️';
+        let contextHtml = '';
+        if (n.context_data) {
+          contextHtml = '<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">';
+          if (n.context_data.app) contextHtml += `<span class="cat-badge" style="background:var(--surface3);color:var(--muted2);font-size:0.7rem;padding:2px 6px;">💻 ${n.context_data.app}</span>`;
+          if (n.context_data.project) contextHtml += `<span class="cat-badge" style="background:rgba(59,130,246,0.15);color:var(--accent);font-size:0.7rem;padding:2px 6px;">📁 ${n.context_data.project}</span>`;
+          if (n.context_data.file) contextHtml += `<span class="cat-badge" style="background:rgba(16,185,129,0.15);color:var(--green);font-size:0.7rem;padding:2px 6px;">📝 ${n.context_data.file.split(/[\\\\/]/).pop()}</span>`;
+          if (n.context_data.git_commit) contextHtml += `<span class="cat-badge" style="background:rgba(245,158,11,0.15);color:var(--orange);font-size:0.7rem;padding:2px 6px;">🔀 ${n.context_data.git_commit}</span>`;
+          contextHtml += '</div>';
+        }
+        
         html += `
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;display:flex;justify-content:space-between">
-            <div>
+            <div style="width:100%">
               <div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${sourceIcon} ${time}</div>
               <div style="white-space:pre-wrap;line-height:1.5;font-size:0.9rem">${n.content.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+              ${contextHtml}
             </div>
-            <button class="btn btn-ghost btn-sm" style="color:var(--red);align-self:flex-start" onclick="deleteNote(${n.id})" title="Delete">✕</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red);align-self:flex-start;margin-left:10px;" onclick="deleteNote(${n.id})" title="Delete">✕</button>
           </div>
         `;
       });
@@ -1682,6 +1802,44 @@ function startVoiceNote() {
     recognition.start();
   } catch(e) {
     // Already started
+  }
+}
+
+// ─── Settings Modal ────────────────────────────────────────────────────────────
+async function openSettings() {
+  document.getElementById('settings-modal').classList.remove('hidden');
+  try {
+    const data = await fetch('/api/settings').then(r => r.json());
+    document.getElementById('set_email_to').value = data.email_to || '';
+    document.getElementById('set_email_user').value = data.email_user || '';
+    document.getElementById('set_email_pass').value = data.email_pass || '';
+  } catch(e) {
+    console.error('Failed to load settings', e);
+  }
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.add('hidden');
+}
+
+async function saveSettings() {
+  const email_to = document.getElementById('set_email_to').value;
+  const email_user = document.getElementById('set_email_user').value;
+  const email_pass = document.getElementById('set_email_pass').value;
+  
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_to, email_user, email_pass })
+    }).then(r => r.json());
+    
+    if (res.status === 'ok') {
+      showToast('Settings saved successfully', 'success');
+      closeSettings();
+    }
+  } catch(e) {
+    showToast('Failed to save settings', 'error');
   }
 }
 

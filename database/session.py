@@ -42,5 +42,7 @@ def init_db():
         _add_column_if_missing(conn, 'ocr', 'screenshot_path', 'VARCHAR(2048)')
         # v2.1: file_edits.editor — which IDE was used
         _add_column_if_missing(conn, 'file_edits', 'editor', 'VARCHAR(128)')
+        _add_column_if_missing(conn, 'daily_notes', 'context_data', 'TEXT')
+        _add_column_if_missing(conn, 'daily_notes', 'screenshot_path', 'VARCHAR(2048)')
         conn.commit()
 

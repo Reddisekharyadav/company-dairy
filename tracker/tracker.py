@@ -99,9 +99,17 @@ class ActivityTracker:
     def _run(self):
         session: Session = SessionLocal()
         last_cleanup = datetime.min
+        
+        current_window = None
+        window_start_time = None
+        last_tick = time.time()
+        
         try:
             while not self._stop.is_set():
                 now = datetime.now()
+                now_ts = time.time()
+                elapsed = now_ts - last_tick
+                last_tick = now_ts
                 
                 # Run cleanup once a day
                 if (now - last_cleanup).total_seconds() > 86400:
@@ -109,66 +117,88 @@ class ActivityTracker:
                     last_cleanup = now
                     
                 proc_name, title = get_active_window()
-                now = datetime.now()
+                window_key = (proc_name, title)
                 idle = self._is_idle()
-                opened_file = None
-                project = None
-                language = None
-
-                if title:
-                    # normalize em dash to simple dash
-                    nt = title.replace('\u2014', ' - ').replace('\u2013', ' - ')
-                    # common patterns:
-                    # "filename - folder - Visual Studio Code"
-                    # "filename — project — PyCharm"
-                    # "Tab Title - Site - Google Chrome"
-                    parts = [p.strip() for p in nt.split(' - ') if p.strip()]
-                    # heuristics for VS Code / JetBrains: filename is first part
-                    if 'Visual Studio Code' in nt or 'Code -' in nt or ' - Visual Studio Code' in nt:
-                        if len(parts) >= 2:
-                            opened_file = parts[0]
-                            project = parts[1]
-                    elif proc_name and any(k in proc_name.lower() for k in ('pycharm', 'intellij', 'idea')):
-                        if len(parts) >= 2:
-                            opened_file = parts[0]
-                            project = parts[1]
+                
+                if not idle and proc_name:
+                    if window_key != current_window:
+                        # Save the previous window if we tracked it for at least a few seconds
+                        if current_window and window_start_time:
+                            duration = now_ts - window_start_time
+                            if duration >= 1.0:
+                                self._save_event(session, current_window[0], current_window[1], duration, idle)
+                        
+                        current_window = window_key
+                        window_start_time = now_ts
                     else:
-                        # browser or other apps: try to detect file-like strings
-                        # if the first part contains a file extension, treat as filename
-                        if parts:
-                            candidate = parts[0]
-                            if re.search(r"\.[a-zA-Z0-9]{1,6}$", candidate):
-                                opened_file = candidate
-                            else:
-                                # sometimes VS Code shows "file - Workspace - Visual Studio Code"
-                                opened_file = None
-
-                # try to detect language from opened_file
-                if opened_file:
-                    language = self._guess_language_from_filename(opened_file)
-
-                category = categorize_activity(proc_name or '', title or '')
-                website = extract_website_name(title or '', proc_name or '')
-
-                ev = Event(
-                    timestamp=now,
-                    duration=self.interval,
-                    application=proc_name or "",
-                    window_title=title or "",
-                    process_name=proc_name or "",
-                    project=project,
-                    opened_file=opened_file,
-                    language=language,
-                    cpu=psutil.cpu_percent(interval=None),
-                    idle=idle,
-                    category=category,
-                    website=website,
-                )
-                session.add(ev)
-                session.commit()
-                log.debug("Logged event: %s %s", proc_name, title)
+                        # Flush periodically if staying on the same window a long time (e.g. 60s)
+                        if window_start_time and (now_ts - window_start_time) >= 60.0:
+                            self._save_event(session, current_window[0], current_window[1], 60.0, idle)
+                            window_start_time = now_ts
+                elif idle and current_window:
+                    # User went idle, flush current window
+                    duration = now_ts - window_start_time
+                    if duration >= 1.0:
+                        self._save_event(session, current_window[0], current_window[1], duration, idle)
+                    current_window = None
+                    window_start_time = None
+                    
                 time.sleep(self.interval)
+                
         except Exception as e:
             log.exception("Tracker error: %s", e)
         finally:
+            if current_window and window_start_time:
+                duration = time.time() - window_start_time
+                if duration >= 1.0:
+                    try:
+                        self._save_event(session, current_window[0], current_window[1], duration, False)
+                    except Exception:
+                        pass
             session.close()
+
+    def _save_event(self, session, proc_name, title, duration, idle):
+        opened_file = None
+        project = None
+        language = None
+
+        if title:
+            nt = title.replace('\u2014', ' - ').replace('\u2013', ' - ')
+            parts = [p.strip() for p in nt.split(' - ') if p.strip()]
+            if 'Visual Studio Code' in nt or 'Code -' in nt or ' - Visual Studio Code' in nt:
+                if len(parts) >= 2:
+                    opened_file = parts[0]
+                    project = parts[1]
+            elif proc_name and any(k in proc_name.lower() for k in ('pycharm', 'intellij', 'idea')):
+                if len(parts) >= 2:
+                    opened_file = parts[0]
+                    project = parts[1]
+            else:
+                if parts:
+                    candidate = parts[0]
+                    if re.search(r"\.[a-zA-Z0-9]{1,6}$", candidate):
+                        opened_file = candidate
+
+        if opened_file:
+            language = self._guess_language_from_filename(opened_file)
+
+        category = categorize_activity(proc_name or '', title or '')
+        website = extract_website_name(title or '', proc_name or '')
+
+        ev = Event(
+            timestamp=datetime.now(),
+            duration=duration,
+            application=proc_name or "",
+            window_title=title or "",
+            process_name=proc_name or "",
+            project=project,
+            opened_file=opened_file,
+            language=language,
+            cpu=psutil.cpu_percent(interval=None),
+            idle=idle,
+            category=category,
+            website=website,
+        )
+        session.add(ev)
+        session.commit()
+        log.debug("Logged event: %s %s (%.1fs)", proc_name, title, duration)

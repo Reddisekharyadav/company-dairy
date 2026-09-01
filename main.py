@@ -367,11 +367,13 @@ def open_dashboard(_=None):
 def on_exit(icon, _=None):
     log.info('User requested exit')
     try:
-        from backend.app import tracker, git_watcher, screen_worker, browser_hist
+        from backend.app import tracker, git_watcher, screen_worker, browser_hist, meeting_trk, smart_sum
         tracker.stop()
         git_watcher.stop()
         screen_worker.stop()
         browser_hist.stop()
+        meeting_trk.stop()
+        smart_sum.stop()
     except Exception as e:
         log.warning('Shutdown error: %s', e)
     # Destroy the floating widget
@@ -528,6 +530,9 @@ def main(argv=None):
     except Exception as e:
         log.warning('Could not launch status widget: %s', e)
 
+    # Automatically open the dashboard in the default browser on launch
+    open_dashboard()
+
     # Build tray menu
     menu = Menu(
         MenuItem('🌐 Open Dashboard',       open_dashboard),
@@ -560,11 +565,13 @@ def main(argv=None):
         icon.run()
     finally:
         try:
-            from backend.app import tracker, git_watcher, screen_worker, browser_hist
+            from backend.app import tracker, git_watcher, screen_worker, browser_hist, meeting_trk, smart_sum
             tracker.stop()
             git_watcher.stop()
             screen_worker.stop()
             browser_hist.stop()
+            meeting_trk.stop()
+            smart_sum.stop()
         except Exception:
             pass
         try:

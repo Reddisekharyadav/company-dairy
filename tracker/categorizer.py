@@ -84,8 +84,17 @@ CATEGORY_RULES = [
 
     # Communication apps
     (['slack.exe', 'discord.exe', 'telegram.exe', 'msteams.exe',
-      'zoom.exe', 'whatsapp.exe'],
+      'whatsapp.exe'],
      [], 'Communication'),
+
+    # Meetings (desktop apps)
+    (['teams.exe', 'ms-teams.exe', 'zoom.exe', 'webex.exe'],
+     ['meeting', 'call', 'join'], 'Meeting'),
+
+    # Meetings (browser)
+    (['chrome.exe', 'msedge.exe', 'firefox.exe'],
+     ['meet.google.com', 'teams.microsoft.com', 'zoom.us', 'webex.com'],
+     'Meeting'),
 
     # Entertainment
     (['chrome.exe', 'msedge.exe', 'firefox.exe'],

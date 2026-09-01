@@ -169,4 +169,34 @@ class DailyNote(Base):
     content = Column(Text, nullable=False)
     source = Column(String(16), default='typed')      # "typed" or "voice"
     category = Column(String(64), nullable=True)      # optional user tag
+    context_data = Column(Text, nullable=True)        # JSON string of active window, branch, etc.
+    screenshot_path = Column(String(2048), nullable=True) # Screenshot taken at the moment the note was made
 
+
+# ── Meeting Tracker ───────────────────────────────────────────────────────────
+
+class Meeting(Base):
+    """Tracks video/voice meetings (Teams, Zoom, Google Meet)."""
+    __tablename__ = "meetings"
+    id = Column(Integer, primary_key=True)
+    start_time = Column(DateTime, default=datetime.now, index=True)
+    end_time = Column(DateTime, nullable=True)
+    duration_sec = Column(Float, default=0.0)
+    platform = Column(String(64), nullable=True)       # "Teams", "Zoom", "Meet"
+    title = Column(String(1024), nullable=True)         # meeting title from window
+    session_date = Column(String(20))
+
+
+# ── AI Activity Insights (Local Summarizer) ───────────────────────────────────
+
+class ActivityInsight(Base):
+    """AI-generated summaries of what the user is doing on each tab/window."""
+    __tablename__ = "activity_insights"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    app = Column(String(256), nullable=True)
+    window_title = Column(String(1024), nullable=True)
+    summary = Column(Text, nullable=True)               # "Reading about asyncio on docs.python.org"
+    topic_keywords = Column(String(512), nullable=True)  # "asyncio, python, event loop"
+    duration_on_tab = Column(Float, default=0.0)         # seconds on this specific tab
+    session_date = Column(String(20))

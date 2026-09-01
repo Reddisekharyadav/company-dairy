@@ -7,6 +7,8 @@ from tracker.git_watcher import GitWatcher
 from tracker.file_watcher import FileEditWatcher
 from tracker.search_extractor import SearchExtractor
 from tracker.browser_history import BrowserHistoryTracker
+from tracker.meeting_tracker import MeetingTracker
+from tracker.smart_summarizer import SmartSummarizer
 from ocr.screen_capture import ScreenCaptureWorker, is_consent_granted, grant_consent, revoke_consent
 import os
 import sys
@@ -41,6 +43,8 @@ screen_worker = ScreenCaptureWorker(interval=30)
 file_watcher  = FileEditWatcher(interval=5.0)
 search_ext    = SearchExtractor(interval=5.0)
 browser_hist  = BrowserHistoryTracker(interval=300.0)  # Read browser history every 5 min
+meeting_trk   = MeetingTracker(interval=10.0)
+smart_sum     = SmartSummarizer(interval=30.0, summary_interval=300.0)
 
 
 @app.on_event("startup")
@@ -52,6 +56,8 @@ def startup():
     file_watcher.start()
     search_ext.start()
     browser_hist.start()
+    meeting_trk.start()
+    smart_sum.start()
 
 
 @app.on_event("shutdown")
@@ -68,6 +74,8 @@ def shutdown():
     file_watcher.stop()
     search_ext.stop()
     browser_hist.stop()
+    meeting_trk.stop()
+    smart_sum.stop()
 
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -168,6 +176,45 @@ def api_categories(period: str = 'daily'):
             {"category": k, "seconds": v, "hours": round(v / 3600, 3)}
             for k, v in sorted(cat_map.items(), key=lambda x: -x[1])
         ])
+    finally:
+        session.close()
+
+
+@app.get('/api/meetings')
+def api_meetings(days: int = 1):
+    """Return meetings for the given period."""
+    session = SessionLocal()
+    try:
+        from database.models import Meeting
+        start = datetime.now() - timedelta(days=days)
+        rows = session.query(Meeting).filter(Meeting.start_time >= start).all()
+        return JSONResponse([{
+            "id": r.id,
+            "timestamp": r.start_time.isoformat() if r.start_time else None,
+            "duration_sec": r.duration_sec,
+            "app": r.platform,
+            "title": r.title
+        } for r in rows])
+    finally:
+        session.close()
+
+@app.get('/api/insights')
+def api_insights(days: int = 1):
+    """Return AI insights for the given period."""
+    session = SessionLocal()
+    try:
+        from database.models import ActivityInsight
+        start = datetime.now() - timedelta(days=days)
+        rows = session.query(ActivityInsight).filter(ActivityInsight.timestamp >= start).order_by(ActivityInsight.timestamp.desc()).all()
+        return JSONResponse([{
+            "id": r.id,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "app": r.app,
+            "title": r.window_title,
+            "insight_text": r.summary,
+            "topic": r.topic_keywords,
+            "duration_sec": r.duration_on_tab
+        } for r in rows])
     finally:
         session.close()
 
@@ -596,6 +643,139 @@ def api_browser_top_sites(days: int = 7):
         return JSONResponse({'error': str(e)}, status_code=500)
 
 
+# ── Meetings API ──────────────────────────────────────────────────────────────
+
+@app.get('/api/meetings')
+def api_meetings(days: int = 7):
+    """Return meetings for the last N days."""
+    try:
+        session = SessionLocal()
+        from database.models import Meeting
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(Meeting)
+                .filter(Meeting.start_time >= since)
+                .order_by(Meeting.start_time.desc())
+                .all())
+        data = [{
+            'id': r.id,
+            'start_time': r.start_time.isoformat() if r.start_time else None,
+            'end_time': r.end_time.isoformat() if r.end_time else None,
+            'duration_min': round((r.duration_sec or 0) / 60, 1),
+            'platform': r.platform,
+            'title': r.title,
+            'date': r.session_date,
+        } for r in rows]
+        session.close()
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ── AI Activity Insights API ─────────────────────────────────────────────────
+
+@app.get('/api/insights')
+def api_insights(days: int = 1, limit: int = 50):
+    """Return AI-generated activity insights."""
+    try:
+        session = SessionLocal()
+        from database.models import ActivityInsight
+        since = datetime.now() - timedelta(days=days)
+        rows = (session.query(ActivityInsight)
+                .filter(ActivityInsight.timestamp >= since)
+                .order_by(ActivityInsight.timestamp.desc())
+                .limit(limit)
+                .all())
+        data = [{
+            'id': r.id,
+            'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+            'app': r.app,
+            'summary': r.summary,
+            'keywords': r.topic_keywords,
+            'duration_min': round((r.duration_on_tab or 0) / 60, 1),
+            'date': r.session_date,
+        } for r in rows]
+        session.close()
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ── Notes API (Context-Aware) ─────────────────────────────────────────────────
+import json
+
+@app.get('/api/notes')
+def api_get_notes(limit: int = 50):
+    try:
+        session = SessionLocal()
+        from database.models import DailyNote
+        notes = session.query(DailyNote).order_by(DailyNote.timestamp.desc()).limit(limit).all()
+        res = [{
+            'id': n.id,
+            'timestamp': n.timestamp.isoformat() if n.timestamp else None,
+            'date': n.date,
+            'content': n.content,
+            'source': n.source,
+            'category': n.category,
+            'context_data': json.loads(n.context_data) if n.context_data else None,
+            'screenshot_path': n.screenshot_path
+        } for n in notes]
+        session.close()
+        return JSONResponse(res)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.post('/api/notes')
+async def api_post_note(request: Request):
+    try:
+        data = await request.json()
+        content = data.get('content', '').strip()
+        source = data.get('source', 'typed')
+        if not content:
+            return JSONResponse({'error': 'content required'}, status_code=400)
+            
+        session = SessionLocal()
+        from database.models import DailyNote, Event, GitActivity
+        
+        # ── Capture Current Context ──
+        context = {}
+        latest_event = session.query(Event).order_by(Event.timestamp.desc()).first()
+        if latest_event:
+            context['app'] = latest_event.application
+            context['window'] = latest_event.window_title
+            context['project'] = latest_event.project
+            context['file'] = latest_event.opened_file
+        
+        latest_git = session.query(GitActivity).order_by(GitActivity.timestamp.desc()).first()
+        if latest_git:
+            context['git_repo'] = latest_git.repo
+            context['git_commit'] = latest_git.commit_hash[:8] if latest_git.commit_hash else None
+            
+        note = DailyNote(
+            date=datetime.now().strftime('%Y-%m-%d'),
+            content=content,
+            source=source,
+            context_data=json.dumps(context) if context else None
+        )
+        session.add(note)
+        session.commit()
+        session.close()
+        return JSONResponse({'status': 'saved'})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.delete('/api/notes/{note_id}')
+def api_delete_note(note_id: int):
+    try:
+        session = SessionLocal()
+        from database.models import DailyNote
+        session.query(DailyNote).filter(DailyNote.id == note_id).delete()
+        session.commit()
+        session.close()
+        return JSONResponse({'status': 'deleted'})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
 @app.get('/api/files/detailed')
 def api_files_detailed(days: int = 7, limit: int = 30):
     """Return file edits with IDE/editor info."""
@@ -626,77 +806,4 @@ def api_files_detailed(days: int = 7, limit: int = 30):
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
 
-
-# ── Daily Notes API ───────────────────────────────────────────────────────────
-
-@app.post('/api/notes')
-async def api_create_note(request: Request):
-    """Save a new daily work note (typed or voice)."""
-    try:
-        body = await request.json()
-        content = (body.get('content') or '').strip()
-        if not content:
-            return JSONResponse({'error': 'Content is required'}, status_code=400)
-        source = body.get('source', 'typed')
-        category = body.get('category')
-
-        from database.models import DailyNote
-        session = SessionLocal()
-        note = DailyNote(
-            timestamp=datetime.now(),
-            date=datetime.now().strftime('%Y-%m-%d'),
-            content=content[:4000],
-            source=source if source in ('typed', 'voice') else 'typed',
-            category=category[:64] if category else None,
-        )
-        session.add(note)
-        session.commit()
-        note_id = note.id
-        session.close()
-        return JSONResponse({'status': 'saved', 'id': note_id})
-    except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
-
-
-@app.get('/api/notes')
-def api_get_notes(days: int = 7, limit: int = 100):
-    """Return daily notes for the last N days."""
-    try:
-        from database.models import DailyNote
-        session = SessionLocal()
-        since = datetime.now() - timedelta(days=days)
-        rows = (session.query(DailyNote)
-                .filter(DailyNote.timestamp >= since)
-                .order_by(DailyNote.timestamp.desc())
-                .limit(limit).all())
-        data = [{
-            'id': r.id,
-            'timestamp': r.timestamp.isoformat() if r.timestamp else None,
-            'date': r.date,
-            'content': r.content,
-            'source': r.source,
-            'category': r.category,
-        } for r in rows]
-        session.close()
-        return JSONResponse(data)
-    except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
-
-
-@app.delete('/api/notes/{note_id}')
-def api_delete_note(note_id: int):
-    """Delete a daily note by ID."""
-    try:
-        from database.models import DailyNote
-        session = SessionLocal()
-        note = session.query(DailyNote).filter(DailyNote.id == note_id).first()
-        if not note:
-            session.close()
-            return JSONResponse({'error': 'Not found'}, status_code=404)
-        session.delete(note)
-        session.commit()
-        session.close()
-        return JSONResponse({'status': 'deleted'})
-    except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
 
