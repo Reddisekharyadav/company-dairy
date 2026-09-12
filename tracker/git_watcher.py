@@ -6,7 +6,7 @@ from database.session import SessionLocal
 from database.models import GitActivity
 from datetime import datetime
 import logging
-from config.settings import settings
+from config.settings import settings, SESSION_ID
 
 try:
     from git import Repo, InvalidGitRepositoryError, NoSuchPathError
@@ -63,7 +63,14 @@ class GitWatcher:
                         # check last stored commit for this repo
                         last = session.query(GitActivity).filter(GitActivity.repo == repo_path).order_by(GitActivity.timestamp.desc()).first()
                         if not last or last.commit_hash != commit_hash:
-                            ga = GitActivity(repo=repo_path, commit_hash=commit_hash, message=head.message, author=str(head.author), timestamp=datetime.fromtimestamp(head.committed_date))
+                            ga = GitActivity(
+                                repo=repo_path, 
+                                commit_hash=commit_hash, 
+                                message=head.message, 
+                                author=str(head.author), 
+                                timestamp=datetime.fromtimestamp(head.committed_date),
+                                session_id=SESSION_ID
+                            )
                             session.add(ga)
                             session.commit()
                             log.info('Recorded new git commit %s in %s', commit_hash[:8], repo_path)

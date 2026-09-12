@@ -10,91 +10,158 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
 
-def summarize_events(start: datetime, end: datetime) -> str:
+def summarize_events(start: datetime, end: datetime, session_id: str = None) -> str:
     session = SessionLocal()
-    events = session.query(Event).filter(
-        Event.timestamp >= start, Event.timestamp <= end
-    ).order_by(Event.timestamp).all()
+    
+    if session_id:
+        # ── NARRATIVE FORMAT (Session-Scoped) ──
+        from database.models import ActivityInsight, FileEdit, Meeting
+        
+        insights = session.query(ActivityInsight).filter(ActivityInsight.session_id == session_id).all()
+        files = session.query(FileEdit).filter(FileEdit.session_id == session_id).all()
+        meetings = session.query(Meeting).filter(Meeting.session_id == session_id).all()
+        commits = session.query(GitActivity).filter(GitActivity.session_id == session_id).all()
+        
+        session.close()
 
-    git_activity = session.query(GitActivity).filter(
-        GitActivity.timestamp >= start, GitActivity.timestamp <= end
-    ).all()
-    session.close()
+        lines = []
+        lines.append(f"WorkSense AI Automated Standup Report")
+        lines.append(f"Session: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
+        lines.append("=" * 60)
+        
+        # 1. Topic/Insight Narrative
+        topic_map = {}
+        for i in insights:
+            t = i.topic_keywords or "General Activity"
+            if t not in topic_map:
+                topic_map[t] = {'duration': 0, 'summaries': set()}
+            topic_map[t]['duration'] += i.duration_on_tab or 0
+            if i.summary:
+                topic_map[t]['summaries'].add(i.summary)
+        
+        if topic_map:
+            lines.append("\n🧠 KEY TOPICS & FOCUS AREAS")
+            lines.append("-" * 40)
+            for topic, data in sorted(topic_map.items(), key=lambda x: -x[1]['duration']):
+                mins = data['duration'] / 60.0
+                if mins < 1.0: continue
+                lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
+                for s in list(data['summaries'])[:3]:  # Top 3 summaries
+                    lines.append(f"    - {s}")
+        
+        # 2. File Edits
+        if files:
+            lines.append("\n💻 FILES TOUCHED")
+            lines.append("-" * 40)
+            for f in sorted(files, key=lambda x: -(x.duration_sec or 0))[:10]:
+                mins = (f.duration_sec or 0) / 60.0
+                if mins > 0.5:
+                    lines.append(f"  - {f.file_name or f.file_path} ({mins:.1f} mins)")
+                    
+        # 3. Meetings
+        if meetings:
+            lines.append("\n📅 MEETINGS ATTENDED")
+            lines.append("-" * 40)
+            for m in meetings:
+                mins = (m.duration_sec or 0) / 60.0
+                lines.append(f"  - [{m.platform}] {m.title or 'Unknown Meeting'} ({mins:.1f} mins)")
 
-    lines = []
-    lines.append(f"Report: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
-    lines.append("=" * 55)
+        # 4. Commits
+        if commits:
+            lines.append("\n🔀 CODE COMMITS")
+            lines.append("-" * 40)
+            for c in commits:
+                msg = (c.message or '').split('\n')[0]
+                lines.append(f"  - [{c.commit_hash[:7]}] {msg}")
 
-    # --- Category breakdown ---
-    cat_map = {}
-    for e in events:
-        if e.idle:
-            continue
-        cat = e.category or 'Other'
-        cat_map.setdefault(cat, 0)
-        cat_map[cat] += e.duration or 0
-
-    total_secs = sum(cat_map.values()) or 1
-    lines.append("\n🗂  ACTIVITY CATEGORIES")
-    lines.append("-" * 30)
-    for cat, secs in sorted(cat_map.items(), key=lambda x: -x[1]):
-        pct = secs / total_secs * 100
-        hours = secs / 3600.0
-        bar = '█' * int(pct / 5)
-        lines.append(f"  {cat:<22} {hours:5.2f}h  ({pct:4.1f}%)  {bar}")
-
-    # --- Browser History (from BrowserHistory table) ---
-    browser_lines = _get_browser_history_section(start, end)
-    if browser_lines:
-        lines.extend(browser_lines)
-
-    # --- Website breakdown (from Events table — fallback) ---
-    web_map = {}
-    for e in events:
-        if e.idle or not e.website:
-            continue
-        web_map.setdefault(e.website, 0)
-        web_map[e.website] += e.duration or 0
-
-    if web_map:
-        lines.append("\n🌐  WEBSITES & APPS VISITED")
-        lines.append("-" * 30)
-        for site, secs in sorted(web_map.items(), key=lambda x: -x[1])[:15]:
-            mins = secs / 60.0
-            lines.append(f"  {site:<30} {mins:5.1f} min")
-
-    # --- Files edited (enhanced with IDE info) ---
-    file_lines = _get_file_edits_section(start, end)
-    if file_lines:
-        lines.extend(file_lines)
+        lines.append("\n" + "=" * 60)
+        return "\n".join(lines)
+        
     else:
-        # Fallback to basic file tracking from Events
-        file_map = {}
+        # ── OLD CHRONOLOGICAL FORMAT (Fallback) ──
+        events = session.query(Event).filter(
+            Event.timestamp >= start, Event.timestamp <= end
+        ).order_by(Event.timestamp).all()
+    
+        git_activity = session.query(GitActivity).filter(
+            GitActivity.timestamp >= start, GitActivity.timestamp <= end
+        ).all()
+        session.close()
+    
+        lines = []
+        lines.append(f"Report: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
+        lines.append("=" * 55)
+    
+        # --- Category breakdown ---
+        cat_map = {}
         for e in events:
-            if e.opened_file:
-                file_map.setdefault(e.opened_file, 0)
-                file_map[e.opened_file] += e.duration or 0
-
-        if file_map:
-            lines.append("\n💻  FILES WORKED ON")
-            lines.append("-" * 30)
-            for fname, secs in sorted(file_map.items(), key=lambda x: -x[1])[:10]:
-                mins = secs / 60.0
-                lines.append(f"  {fname:<40} {mins:4.1f} min")
-
-    # --- Git commits ---
-    if git_activity:
-        lines.append("\n🔀  GIT COMMITS")
+            if e.idle:
+                continue
+            cat = e.category or 'Other'
+            cat_map.setdefault(cat, 0)
+            cat_map[cat] += e.duration or 0
+    
+        total_secs = sum(cat_map.values()) or 1
+        lines.append("\n🗂  ACTIVITY CATEGORIES")
         lines.append("-" * 30)
-        for ga in git_activity[:10]:
-            msg = (ga.message or '').strip().split('\n')[0][:60]
-            lines.append(f"  [{ga.commit_hash[:7]}] {msg}")
-            lines.append(f"           by {ga.author}  @ {ga.timestamp.strftime('%H:%M')}")
-
-    lines.append("\n" + "=" * 55)
-    lines.append(f"Total tracked time: {total_secs/3600:.2f} hours")
-
-    return "\n".join(lines)
+        for cat, secs in sorted(cat_map.items(), key=lambda x: -x[1]):
+            pct = secs / total_secs * 100
+            hours = secs / 3600.0
+            bar = '█' * int(pct / 5)
+            lines.append(f"  {cat:<22} {hours:5.2f}h  ({pct:4.1f}%)  {bar}")
+    
+        # --- Browser History (from BrowserHistory table) ---
+        browser_lines = _get_browser_history_section(start, end)
+        if browser_lines:
+            lines.extend(browser_lines)
+    
+        # --- Website breakdown (from Events table — fallback) ---
+        web_map = {}
+        for e in events:
+            if e.idle or not e.website:
+                continue
+            web_map.setdefault(e.website, 0)
+            web_map[e.website] += e.duration or 0
+    
+        if web_map:
+            lines.append("\n🌐  WEBSITES & APPS VISITED")
+            lines.append("-" * 30)
+            for site, secs in sorted(web_map.items(), key=lambda x: -x[1])[:15]:
+                mins = secs / 60.0
+                lines.append(f"  {site:<30} {mins:5.1f} min")
+    
+        # --- Files edited (enhanced with IDE info) ---
+        file_lines = _get_file_edits_section(start, end)
+        if file_lines:
+            lines.extend(file_lines)
+        else:
+            # Fallback to basic file tracking from Events
+            file_map = {}
+            for e in events:
+                if e.opened_file:
+                    file_map.setdefault(e.opened_file, 0)
+                    file_map[e.opened_file] += e.duration or 0
+    
+            if file_map:
+                lines.append("\n💻  FILES WORKED ON")
+                lines.append("-" * 30)
+                for fname, secs in sorted(file_map.items(), key=lambda x: -x[1])[:10]:
+                    mins = secs / 60.0
+                    lines.append(f"  {fname:<40} {mins:4.1f} min")
+    
+        # --- Git commits ---
+        if git_activity:
+            lines.append("\n🔀  GIT COMMITS")
+            lines.append("-" * 30)
+            for ga in git_activity[:10]:
+                msg = (ga.message or '').strip().split('\n')[0][:60]
+                lines.append(f"  [{ga.commit_hash[:7]}] {msg}")
+                lines.append(f"           by {ga.author}  @ {ga.timestamp.strftime('%H:%M')}")
+    
+        lines.append("\n" + "=" * 55)
+        lines.append(f"Total tracked time: {total_secs/3600:.2f} hours")
+    
+        return "\n".join(lines)
 
 
 def _get_browser_history_section(start: datetime, end: datetime) -> list[str]:

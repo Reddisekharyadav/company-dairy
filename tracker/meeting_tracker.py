@@ -10,6 +10,7 @@ import re
 import time
 from datetime import datetime
 from threading import Thread, Event
+from config.settings import SESSION_ID
 
 log = logging.getLogger('meeting_tracker')
 
@@ -133,6 +134,7 @@ class MeetingTracker:
                                 platform=self._current_meeting['platform'],
                                 title=self._current_meeting['title'],
                                 session_date=self._current_meeting['start_time'].strftime('%Y-%m-%d'),
+                                session_id=SESSION_ID
                             )
                             session.add(m)
                             session.commit()
@@ -164,6 +166,7 @@ class MeetingTracker:
                             platform=self._current_meeting['platform'],
                             title=self._current_meeting['title'],
                             session_date=self._current_meeting['start_time'].strftime('%Y-%m-%d'),
+                            session_id=SESSION_ID
                         )
                         session.add(m)
                         session.commit()

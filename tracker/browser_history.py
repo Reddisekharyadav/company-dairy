@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
+from config.settings import SESSION_ID
 
 log = logging.getLogger('browser_history')
 
@@ -418,6 +419,7 @@ class BrowserHistoryTracker:
                 if not domain:
                     continue
                 bh = BrowserHistory(
+                    session_id=SESSION_ID,
                     timestamp=entry['timestamp'],
                     url=entry['url'][:2048],
                     title=entry['title'][:1024] if entry['title'] else None,

@@ -4,6 +4,12 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 from database.session import SessionLocal
+"""Background tracker that periodically samples active window and writes events to DB."""
+from threading import Thread, Event as ThreadEvent
+import time
+from datetime import datetime, timedelta
+from typing import Optional
+from database.session import SessionLocal
 from database.models import Event, BrowserHistory, FileEdit, GitActivity, Report
 from tracker.active_window import get_active_window
 from tracker.categorizer import categorize_activity, extract_website_name
@@ -12,6 +18,7 @@ import logging
 import os
 import re
 from sqlalchemy.orm import Session
+from config.settings import SESSION_ID
 
 log = logging.getLogger("tracker")
 
@@ -187,6 +194,7 @@ class ActivityTracker:
 
         ev = Event(
             timestamp=datetime.now(),
+            session_id=SESSION_ID,
             duration=duration,
             application=proc_name or "",
             window_title=title or "",

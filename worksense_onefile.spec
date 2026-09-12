@@ -78,6 +78,10 @@ hiddenimports += [
     'tracker.meeting_tracker',
     'tracker.smart_summarizer',
     'reports.briefing',
+    'reports.excel_exporter',
+    'ocr.screen_analyzer',
+    'openpyxl',
+    'et_xmlfile',
     'watchdog',
     # .env support
     'dotenv',

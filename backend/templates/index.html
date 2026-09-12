@@ -394,6 +394,9 @@
     <button class="p-tab" id="tab-reports" onclick="switchTab('reports')">
       <span class="tab-icon">📊</span> Reports
     </button>
+    <button class="p-tab" id="tab-memory" onclick="switchTab('memory')">
+      <span class="tab-icon">🧠</span> Memory Search
+    </button>
   </div>
 </nav>
 
@@ -455,6 +458,22 @@
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
       <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MEMORY SEARCH PANEL                                                        -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel hidden" id="panel-memory">
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title"><span class="icon">🔍</span> Photographic Memory Search</div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <input type="text" id="memory-search-input" placeholder="Search exactly what you saw on screen (e.g. 'project alpha architecture')" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:10px 14px;border-radius:8px;font-family:inherit;font-size:1rem;" onkeydown="if(event.key==='Enter') searchMemory()">
+      <button class="btn btn-primary" onclick="searchMemory()">Search</button>
+    </div>
+    <div id="memory-results" class="activity-list" style="max-height:600px;">
+      <div style="color:var(--muted);font-size:.9rem;text-align:center;padding:40px;">Enter a query to search your visual history.</div>
     </div>
   </div>
 </div>
@@ -755,9 +774,9 @@
   </div>
 
   <!-- Work Continuity Row -->
-  <div class="grid g3" style="margin-bottom:20px">
+  <div class="grid g4" style="margin-bottom:20px">
     <div class="card">
-      <div class="card-title"><span class="icon">⏱️</span> Yesterday's Hours</div>
+      <div class="card-title"><span class="icon">⏱️</span> Today's Hours</div>
       <div class="stat-value stat-accent" id="co-hours">—</div>
       <div class="stat-label">active hours</div>
     </div>
@@ -770,6 +789,27 @@
       <div class="card-title"><span class="icon">📅</span> Time in Meetings</div>
       <div class="stat-value stat-purple" id="co-meetings">—</div>
       <div class="stat-label">minutes tracked</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔀</span> Last Commit</div>
+      <div class="stat-value" id="co-commit" style="font-size:0.9rem;word-break:break-all">—</div>
+      <div class="stat-label">latest git activity</div>
+    </div>
+  </div>
+
+  <!-- Meetings Section -->
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📹</span> Meetings Today</div>
+      <div id="co-meetings-list" class="activity-list" style="max-height:280px">
+        <div class="empty-state">No meetings detected today</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🧠</span> AI Activity Insights</div>
+      <div id="co-insights-list" class="activity-list" style="max-height:280px">
+        <div class="empty-state">Insights will appear as you work</div>
+      </div>
     </div>
   </div>
 
@@ -787,19 +827,35 @@
     </div>
   </div>
 
-  <!-- Work Continuity Actions -->
-  <div class="card">
-    <div class="section-header">
-      <div class="section-title">🔄 Work Continuity</div>
-      <div style="display:flex;gap:8px">
+  <!-- Export & Work Continuity Actions -->
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">📊 Export Data</div>
+      </div>
+      <p style="font-size:.83rem;color:var(--muted2);line-height:1.6;margin-bottom:16px">
+        Export your tracked activity data as an Excel spreadsheet with multiple sheets: events, files, meetings, research, and insights.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="exportExcel('daily')">📥 Export Today (Excel)</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel('weekly')">📥 Export This Week</button>
+        <button class="btn btn-success btn-sm" onclick="openExcel('daily')">📂 Open in Excel</button>
+      </div>
+      <div id="excel-export-status" style="font-size:.8rem;color:var(--muted);margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">🔄 Work Continuity</div>
+      </div>
+      <p style="font-size:.83rem;color:var(--muted2);line-height:1.6;margin-bottom:16px">
+        Save your current session state so you can resume seamlessly tomorrow. The AI Context file can be loaded into any AI coding assistant.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" onclick="saveSession()">💾 Save Session Now</button>
         <button class="btn btn-secondary btn-sm" onclick="exportAIContext()">🤖 Export AI Context</button>
       </div>
+      <div id="session-save-status" style="font-size:.8rem;color:var(--muted);margin-top:10px">Last saved: never</div>
     </div>
-    <p style="font-size:.83rem;color:var(--muted2);line-height:1.6;margin-bottom:16px">
-      Save your current session state so you can resume seamlessly tomorrow. The AI Context file can be loaded into any AI coding assistant.
-    </p>
-    <div id="session-save-status" style="font-size:.8rem;color:var(--muted)">Last saved: never</div>
   </div>
 
 </div><!-- /panel-company -->
@@ -943,7 +999,7 @@ function switchTab(tab) {
   if (tab === 'research') { refreshResearch(); refreshSessions(); refreshSourcesChart(); }
   if (tab === 'browser')  { refreshBrowserHistory(); refreshBrowserTopSites(); }
   if (tab === 'dev')      { refreshDevFiles(); refreshHeatmap(); refreshLangChart(); refreshProjectChart(); }
-  if (tab === 'company')  { refreshCompanyProjects(); refreshCompanyResearch(); refreshBriefing(); }
+  if (tab === 'company')  { refreshCompanyCharts(); refreshCompanyResearch(); refreshBriefing(); refreshCompanyMeetings(); refreshCompanyInsights(); refreshCompanyStats(); }
   if (tab === 'notes')    { refreshNotes(); }
   if (tab === 'reports')  { refreshScreenshots2(); }
 }
@@ -957,6 +1013,10 @@ function startAutoRefresh() {
       const activeTab = document.querySelector('.p-tab.active').id.replace('tab-', '');
       if (activeTab === 'today') {
         refreshTimeline(); refreshStats(); refreshScreenshots();
+      } else if (activeTab === 'company') {
+        refreshCompanyStats(); refreshCompanyMeetings(); refreshCompanyInsights();
+      } else if (activeTab === 'research') {
+        refreshResearch(); refreshSessions();
       } else if (activeTab === 'browser') {
         // don't auto refresh heavy table
       } else if (activeTab === 'notes') {
@@ -1529,7 +1589,8 @@ async function refreshBriefing() {
     }
     document.getElementById('co-hours').textContent = data.hours_worked || '—';
     document.getElementById('co-files').textContent = data.files_edited_count || '—';
-    document.getElementById('co-commit').textContent = data.last_commit || '—';
+    const commitEl = document.getElementById('co-commit');
+    if (commitEl) commitEl.textContent = data.last_commit || '—';
 
     let html = `<div style="font-size:1.05rem;font-weight:600;margin-bottom:12px">${data.greeting}</div>`;
     if (data.resume_message) {
@@ -1596,6 +1657,106 @@ async function saveSession() {
     showToast('✓ Session saved! AI context files updated.', 'success');
   } catch(e) {
     showToast('❌ Save failed: ' + e, 'error');
+  }
+}
+
+// ─── Company Dynamic Data ────────────────────────────────────────────────────
+async function refreshCompanyMeetings() {
+  try {
+    const data = await fetch('/api/meetings?days=1').then(r => r.json());
+    const list = document.getElementById('co-meetings-list');
+    if (!list) return;
+    if (!data.length) { list.innerHTML = '<div class="empty-state">No meetings detected today</div>'; return; }
+    list.innerHTML = data.map(m => {
+      const t = m.start_time ? new Date(m.start_time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      const mins = Math.round(m.duration_min || 0);
+      return `<div class="activity-item">
+        <span class="activity-time">${t}</span>
+        <span class="activity-app" style="flex:1" title="${m.title || ''}">${m.platform || 'Meeting'} — ${(m.title || 'Unknown').substring(0,45)}</span>
+        <span class="cat-badge" style="background:rgba(139,92,246,.15);color:var(--accent2)">${mins} min</span>
+      </div>`;
+    }).join('');
+    // Update stat card
+    const coMeetings = document.getElementById('co-meetings');
+    if (coMeetings) {
+      const totalMins = data.reduce((s, m) => s + Math.round(m.duration_min || 0), 0);
+      coMeetings.textContent = totalMins;
+    }
+  } catch(e) {}
+}
+
+async function refreshCompanyInsights() {
+  try {
+    const data = await fetch('/api/insights?days=1&limit=10').then(r => r.json());
+    const list = document.getElementById('co-insights-list');
+    if (!list) return;
+    if (!data.length) { list.innerHTML = '<div class="empty-state">Insights will appear as you work</div>'; return; }
+    list.innerHTML = data.slice(0, 8).map(i => {
+      const t = i.timestamp ? new Date(i.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="activity-item" style="flex-direction:column;align-items:flex-start">
+        <div style="display:flex;width:100%;margin-bottom:4px">
+          <span class="activity-time">${t}</span>
+          <span style="flex:1;font-size:.82rem;font-weight:500">${i.app || ''}</span>
+          <span class="cat-badge" style="background:rgba(16,185,129,.15);color:var(--green)">${i.keywords || 'Insight'}</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--muted2)">${(i.summary || '').substring(0, 120)}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function refreshCompanyStats() {
+  try {
+    const [cats, files, meetings] = await Promise.all([
+      fetch('/api/categories').then(r => r.json()),
+      fetch('/api/files/recent?days=1&limit=200').then(r => r.json()),
+      fetch('/api/meetings?days=1').then(r => r.json()),
+    ]);
+    const total = cats.reduce((s,c) => s+c.seconds, 0) / 3600;
+    document.getElementById('co-hours').textContent = total.toFixed(2);
+    document.getElementById('co-files').textContent = files.length;
+    const meetingMins = meetings.reduce((s, m) => s + Math.round(m.duration_min || 0), 0);
+    document.getElementById('co-meetings').textContent = meetingMins;
+  } catch(e) {}
+}
+
+async function exportExcel(period) {
+  const statusEl = document.getElementById('excel-export-status');
+  if (statusEl) statusEl.textContent = '⏳ Generating Excel file…';
+  try {
+    const response = await fetch(`/api/export/excel?period=${period}`);
+    if (!response.ok) throw new Error('Export failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WorkSense_${period}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (statusEl) statusEl.textContent = `✅ Excel exported: ${a.download}`;
+    showToast('📊 Excel file downloaded!', 'success');
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ Export failed: ' + e;
+    showToast('❌ Excel export failed: ' + e, 'error');
+  }
+}
+
+async function openExcel(period) {
+  const statusEl = document.getElementById('excel-export-status');
+  if (statusEl) statusEl.textContent = '⏳ Opening in Excel…';
+  try {
+    const data = await fetch(`/api/export/excel/open?period=${period}`).then(r => r.json());
+    if (data.status === 'opened') {
+      if (statusEl) statusEl.textContent = `✅ Opened: ${data.path}`;
+      showToast('📂 Excel opened!', 'success');
+    } else {
+      throw new Error(data.error || 'Failed to open');
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ Failed: ' + e;
+    showToast('❌ Could not open Excel: ' + e, 'error');
   }
 }
 

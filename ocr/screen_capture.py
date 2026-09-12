@@ -68,6 +68,7 @@ class ScreenCaptureWorker:
     def _run(self):
         from database.session import SessionLocal
         from database.models import OCRText
+        from config.settings import SESSION_ID
         from tracker.active_window import get_active_window
 
         SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -141,6 +142,7 @@ class ScreenCaptureWorker:
                     try:
                         o = OCRText(
                             timestamp=ts,
+                            session_id=SESSION_ID,
                             source=title or proc or 'unknown',
                             text=(ocr_text or '')[:4000],  # limit to 4KB
                             screenshot_path=screenshot_path,
@@ -150,6 +152,43 @@ class ScreenCaptureWorker:
                     except Exception as e:
                         session.rollback()
                         log.error('Database error in screen capture: %s', e)
+
+                    # ── Auto-generate screen analysis note ──
+                    if ocr_text and not ocr_text.startswith('['):
+                        try:
+                            from ocr.screen_analyzer import analyze_screen
+                            from database.models import DailyNote
+                            note_text = analyze_screen(ocr_text, proc, title)
+                            if note_text:
+                                # Avoid duplicate notes: check if similar note exists in last 2 min
+                                from sqlalchemy import func
+                                recent_cutoff = datetime.now() - __import__('datetime').timedelta(minutes=2)
+                                existing = session.query(DailyNote).filter(
+                                    DailyNote.source == 'auto_screen',
+                                    DailyNote.timestamp >= recent_cutoff,
+                                    DailyNote.content == note_text,
+                                ).first()
+                                if not existing:
+                                    auto_note = DailyNote(
+                                        timestamp=ts,
+                                        session_id=SESSION_ID,
+                                        date=ts.strftime('%Y-%m-%d'),
+                                        content=note_text,
+                                        source='auto_screen',
+                                        category='screen_analysis',
+                                        context_data=__import__('json').dumps({
+                                            'app': proc,
+                                            'window': title,
+                                        }),
+                                        screenshot_path=screenshot_path,
+                                        auto_generated=True,
+                                    )
+                                    session.add(auto_note)
+                                    session.commit()
+                                    log.debug('Auto-note saved: %s', note_text[:60])
+                        except Exception as e:
+                            session.rollback()
+                            log.debug('Screen analysis note error: %s', e)
 
                 time.sleep(self.interval)
         except Exception as e:

@@ -18,8 +18,10 @@ BASE_DIR = _app_data_dir() if _FROZEN else Path(__file__).resolve().parent.paren
 
 
 import json
+import uuid
 
 CONFIG_FILE = _app_data_dir() / 'config.json'
+SESSION_ID = uuid.uuid4().hex  # Unique ID for this specific run of the application
 
 class Settings:
     def __init__(self):

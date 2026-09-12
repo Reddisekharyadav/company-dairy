@@ -44,5 +44,16 @@ def init_db():
         _add_column_if_missing(conn, 'file_edits', 'editor', 'VARCHAR(128)')
         _add_column_if_missing(conn, 'daily_notes', 'context_data', 'TEXT')
         _add_column_if_missing(conn, 'daily_notes', 'screenshot_path', 'VARCHAR(2048)')
+        # v3.1: session_id for all trackers
+        _add_column_if_missing(conn, 'events', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'git', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'ocr', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'daily_notes', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'file_edits', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'browser_history', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'meetings', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'activity_insights', 'session_id', 'VARCHAR(64)')
+        # v3.2: auto_generated flag for screen analysis notes
+        _add_column_if_missing(conn, 'daily_notes', 'auto_generated', 'BOOLEAN DEFAULT 0')
         conn.commit()
 

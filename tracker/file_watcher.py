@@ -1,4 +1,4 @@
-﻿"""
+"""
 File Edit Watcher â€” tracks which files are being modified across project roots.
 Uses watchdog for filesystem events + active-window polling to measure time-per-file.
 Stores results in FileEdit table for the Dev Files tab and AI context export.
@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from config.settings import SESSION_ID
 
 log = logging.getLogger('file_watcher')
 
@@ -242,7 +243,7 @@ class FileEditWatcher:
             return None
 
         # First part is usually the filename
-        candidate = parts[0].strip().lstrip('â— ')  # remove "â—" dirty indicator in VS Code
+        candidate = parts[0].strip().lstrip('â—  ')  # remove "â— " dirty indicator in VS Code
         if not candidate:
             return None
 
@@ -301,6 +302,7 @@ class FileEditWatcher:
             else:
                 lang = _get_language(file_name)
                 fe = FileEdit(
+                    session_id=SESSION_ID,
                     file_path=file_name,
                     file_name=file_name,
                     project=project,

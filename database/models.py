@@ -26,6 +26,7 @@ class Event(Base):
     __tablename__ = "events"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
     duration = Column(Float, default=0.0)
     application = Column(String(256))
     window_title = Column(String(1024))
@@ -43,6 +44,7 @@ class Event(Base):
 class GitActivity(Base):
     __tablename__ = "git"
     id = Column(Integer, primary_key=True)
+    session_id = Column(String(64), nullable=True, index=True)
     repo = Column(String(1024))
     commit_hash = Column(String(64))
     message = Column(Text)
@@ -54,6 +56,7 @@ class OCRText(Base):
     __tablename__ = "ocr"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now)
+    session_id = Column(String(64), nullable=True, index=True)
     source = Column(String(256))
     text = Column(Text)
     screenshot_path = Column(String(2048), nullable=True)
@@ -77,6 +80,7 @@ class FileEdit(Base):
     __tablename__ = "file_edits"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
     file_path = Column(String(2048), nullable=False)
     file_name = Column(String(512))
     project = Column(String(512), nullable=True)
@@ -147,6 +151,7 @@ class BrowserHistory(Base):
     __tablename__ = "browser_history"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
     url = Column(String(2048), nullable=True)
     title = Column(String(1024), nullable=True)
     site_name = Column(String(256), nullable=True)
@@ -165,12 +170,14 @@ class DailyNote(Base):
     __tablename__ = "daily_notes"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
     date = Column(String(20), index=True)             # "2026-08-24"
     content = Column(Text, nullable=False)
     source = Column(String(16), default='typed')      # "typed" or "voice"
     category = Column(String(64), nullable=True)      # optional user tag
     context_data = Column(Text, nullable=True)        # JSON string of active window, branch, etc.
     screenshot_path = Column(String(2048), nullable=True) # Screenshot taken at the moment the note was made
+    auto_generated = Column(Boolean, default=False)       # True for auto screen analysis notes
 
 
 # ── Meeting Tracker ───────────────────────────────────────────────────────────
@@ -179,6 +186,7 @@ class Meeting(Base):
     """Tracks video/voice meetings (Teams, Zoom, Google Meet)."""
     __tablename__ = "meetings"
     id = Column(Integer, primary_key=True)
+    session_id = Column(String(64), nullable=True, index=True)
     start_time = Column(DateTime, default=datetime.now, index=True)
     end_time = Column(DateTime, nullable=True)
     duration_sec = Column(Float, default=0.0)
@@ -194,6 +202,7 @@ class ActivityInsight(Base):
     __tablename__ = "activity_insights"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
     app = Column(String(256), nullable=True)
     window_title = Column(String(1024), nullable=True)
     summary = Column(Text, nullable=True)               # "Reading about asyncio on docs.python.org"

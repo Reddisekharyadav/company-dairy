@@ -219,6 +219,36 @@ def api_insights(days: int = 1):
         session.close()
 
 
+@app.get('/api/search/memory')
+def api_search_memory(query: str, days: int = 7, limit: int = 50):
+    """Search OCR memory for text matches."""
+    if not query or len(query.strip()) < 3:
+        return JSONResponse([])
+
+    session = SessionLocal()
+    try:
+        from database.models import OCRText
+        start = datetime.now() - timedelta(days=days)
+        # Simple LIKE query for sqlite
+        rows = session.query(OCRText).filter(
+            OCRText.timestamp >= start,
+            OCRText.text.ilike(f'%{query.strip()}%')
+        ).order_by(OCRText.timestamp.desc()).limit(limit).all()
+        
+        results = []
+        for r in rows:
+            results.append({
+                "id": r.id,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "source": r.source,
+                "text": r.text,
+                "screenshot_path": r.screenshot_path
+            })
+        return JSONResponse(results)
+    finally:
+        session.close()
+
+
 @app.get('/api/websites')
 def api_websites(period: str = 'daily'):
     """Return websites/apps visited with time spent."""
@@ -322,13 +352,15 @@ def api_generate_report(period: str = 'daily'):
 @app.post('/api/send_email')
 def api_send_email(period: str = 'daily'):
     """Generate report and send it by email."""
+    from config.settings import SESSION_ID
     now = datetime.now()
     start = _period_start(period, now)
     os.makedirs(settings.export_folder, exist_ok=True)
 
     try:
         pdf = generate_pdf(start, now, settings.export_folder)
-        summary = summarize_events(start, now)
+        # Always use SESSION_ID if we want session-scoped report
+        summary = summarize_events(start, now, session_id=SESSION_ID)
         email_report(pdf, period=period, extra_body=summary)
         return JSONResponse({"status": "sent", "pdf": pdf})
     except EmailNotConfiguredError as e:
@@ -340,15 +372,161 @@ def api_send_email(period: str = 'daily'):
 @app.get('/api/report_content')
 def api_report_content(period: str = 'daily'):
     """Return the report as readable text."""
+    from config.settings import SESSION_ID
     now = datetime.now()
     start = _period_start(period, now)
-    summary = summarize_events(start, now)
+    summary = summarize_events(start, now, session_id=SESSION_ID)
     return JSONResponse({
         "period": period,
         "start": start.isoformat(),
         "end": now.isoformat(),
         "report": summary,
     })
+
+
+# ─── Excel Export ─────────────────────────────────────────────────────────────
+
+@app.get('/api/export/excel')
+def api_export_excel(period: str = 'daily'):
+    """Generate and serve an Excel workbook with all tracked data."""
+    from config.settings import SESSION_ID
+    from reports.excel_exporter import generate_excel
+    now = datetime.now()
+    start = _period_start(period, now)
+    os.makedirs(settings.export_folder, exist_ok=True)
+    try:
+        xlsx_path = generate_excel(start, now, settings.export_folder, session_id=SESSION_ID)
+        return FileResponse(
+            xlsx_path,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename=os.path.basename(xlsx_path),
+        )
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/export/excel/open')
+def api_export_excel_open(period: str = 'daily'):
+    """Generate an Excel workbook and open it with the system default app."""
+    from config.settings import SESSION_ID
+    from reports.excel_exporter import generate_excel
+    import subprocess
+    import platform
+    now = datetime.now()
+    start = _period_start(period, now)
+    os.makedirs(settings.export_folder, exist_ok=True)
+    try:
+        xlsx_path = generate_excel(start, now, settings.export_folder, session_id=SESSION_ID)
+        # Open with default system app
+        system = platform.system()
+        if system == 'Windows':
+            os.startfile(xlsx_path)
+        elif system == 'Darwin':
+            subprocess.Popen(['open', xlsx_path])
+        else:
+            subprocess.Popen(['xdg-open', xlsx_path])
+        return JSONResponse({'status': 'opened', 'path': xlsx_path})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+# ─── Research Deep Dive API ──────────────────────────────────────────────────
+
+@app.get('/api/research/deep')
+def api_research_deep(days: int = 7):
+    """Return research sessions enriched with OCR context and screen notes."""
+    try:
+        session = SessionLocal()
+        from database.models import ResearchSession, SearchQuery, OCRText, DailyNote, ActivityInsight
+        import json
+
+        since = datetime.now() - timedelta(days=days)
+
+        # Get research sessions
+        sessions_list = (session.query(ResearchSession)
+                    .filter(ResearchSession.start_time >= since)
+                    .order_by(ResearchSession.start_time.desc())
+                    .limit(30).all())
+
+        result = []
+        for rs in sessions_list:
+            # Get queries in this session
+            queries = (session.query(SearchQuery)
+                      .filter(SearchQuery.research_session_id == rs.id)
+                      .order_by(SearchQuery.timestamp)
+                      .limit(10).all())
+
+            # Get OCR context around the session time
+            if rs.start_time and rs.end_time:
+                ocr_entries = (session.query(OCRText)
+                              .filter(OCRText.timestamp >= rs.start_time,
+                                      OCRText.timestamp <= rs.end_time)
+                              .limit(5).all())
+            elif rs.start_time:
+                ocr_entries = (session.query(OCRText)
+                              .filter(OCRText.timestamp >= rs.start_time,
+                                      OCRText.timestamp <= rs.start_time + timedelta(minutes=30))
+                              .limit(5).all())
+            else:
+                ocr_entries = []
+
+            # Get auto-generated screen notes around this time
+            screen_notes = []
+            if rs.start_time:
+                sn_start = rs.start_time - timedelta(minutes=2)
+                sn_end = (rs.end_time or rs.start_time) + timedelta(minutes=5)
+                screen_notes = (session.query(DailyNote)
+                               .filter(DailyNote.source == 'auto_screen',
+                                       DailyNote.timestamp >= sn_start,
+                                       DailyNote.timestamp <= sn_end)
+                               .limit(10).all())
+
+            # Get insights for this period
+            insights = []
+            if rs.start_time:
+                i_start = rs.start_time - timedelta(minutes=2)
+                i_end = (rs.end_time or rs.start_time) + timedelta(minutes=5)
+                insights = (session.query(ActivityInsight)
+                           .filter(ActivityInsight.timestamp >= i_start,
+                                   ActivityInsight.timestamp <= i_end)
+                           .limit(5).all())
+
+            topic = rs.topic_label or (queries[0].query[:40] if queries else 'Unknown')
+
+            result.append({
+                'id': rs.id,
+                'topic': topic,
+                'date': rs.date,
+                'start': rs.start_time.isoformat() if rs.start_time else None,
+                'end': rs.end_time.isoformat() if rs.end_time else None,
+                'query_count': rs.query_count,
+                'duration_min': round((rs.total_duration_sec or 0) / 60, 1),
+                'sources': json.loads(rs.sources) if rs.sources else [],
+                'queries': [{'query': q.query, 'source': q.source,
+                            'time': q.timestamp.isoformat() if q.timestamp else None}
+                           for q in queries],
+                'screen_context': [
+                    {'time': o.timestamp.isoformat() if o.timestamp else None,
+                     'text_preview': (o.text or '')[:200],
+                     'source': o.source}
+                    for o in ocr_entries
+                ],
+                'screen_notes': [
+                    {'time': n.timestamp.isoformat() if n.timestamp else None,
+                     'note': n.content}
+                    for n in screen_notes
+                ],
+                'insights': [
+                    {'summary': i.summary, 'keywords': i.topic_keywords,
+                     'duration_min': round((i.duration_on_tab or 0) / 60, 1)}
+                    for i in insights
+                ],
+            })
+
+        session.close()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────

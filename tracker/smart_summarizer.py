@@ -181,7 +181,8 @@ class SmartSummarizer:
 
     def _run(self):
         from database.session import SessionLocal
-        from database.models import ActivityInsight
+        from database.models import Event, OCRText, ActivityInsight
+        from config.settings import SESSION_ID
         from tracker.active_window import get_active_window
 
         session = SessionLocal()
@@ -227,6 +228,7 @@ class SmartSummarizer:
     def _flush_insights(self, session):
         """Generate and save activity insights from accumulated dwell data."""
         from database.models import ActivityInsight
+        from config.settings import SESSION_ID
 
         if not self._tab_dwell:
             return
@@ -247,6 +249,7 @@ class SmartSummarizer:
             try:
                 insight = ActivityInsight(
                     timestamp=data.get('first_seen') or datetime.now(),
+                    session_id=SESSION_ID,
                     app=proc[:256] if proc else None,
                     window_title=title[:1024] if title else None,
                     summary=summary,

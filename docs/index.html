@@ -685,6 +685,83 @@
     </footer>
 
     <script>
+        // ── Dynamic Release Info from GitHub API ──
+        const REPO = 'Reddisekharyadav/company-dairy';
+        const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+
+        async function updateReleaseInfo() {
+            try {
+                const resp = await fetch(API_URL);
+                if (!resp.ok) return;
+                const release = await resp.json();
+
+                // Update version badge
+                const badge = document.querySelector('.hero-badge');
+                if (badge) {
+                    const ver = release.tag_name || 'v2.0';
+                    badge.innerHTML = `<span class="dot"></span> ${ver} — Latest Release`;
+                }
+
+                // Update download buttons with actual release assets
+                const assets = release.assets || [];
+                const assetMap = {};
+                assets.forEach(a => {
+                    if (a.name.includes('Windows') || a.name.endsWith('.exe')) assetMap.windows = a;
+                    if (a.name.includes('macOS') || a.name.includes('Darwin')) assetMap.macos = a;
+                    if (a.name.includes('Linux')) assetMap.linux = a;
+                });
+
+                // Update download cards
+                const dlCards = document.querySelectorAll('.dl-card');
+                dlCards.forEach(card => {
+                    const h3 = card.querySelector('h3');
+                    const link = card.querySelector('.dl-btn');
+                    const info = card.querySelector('p');
+                    if (!h3 || !link) return;
+
+                    const platform = h3.textContent.trim().toLowerCase();
+                    let asset = null;
+                    if (platform === 'windows') asset = assetMap.windows;
+                    else if (platform === 'macos') asset = assetMap.macos;
+                    else if (platform === 'linux') asset = assetMap.linux;
+
+                    if (asset) {
+                        link.href = asset.browser_download_url;
+                        const sizeMB = (asset.size / (1024 * 1024)).toFixed(1);
+                        link.textContent = `⬇ Download (${sizeMB} MB)`;
+                        link.style.pointerEvents = 'auto';
+                        link.style.opacity = '1';
+                    }
+                });
+
+                // Update hero download button
+                const heroBtn = document.querySelector('.hero-buttons .btn-primary');
+                if (heroBtn && assetMap.windows) {
+                    heroBtn.href = assetMap.windows.browser_download_url;
+                    const sizeMB = (assetMap.windows.size / (1024 * 1024)).toFixed(1);
+                    heroBtn.textContent = `⬇ Download for Windows (${sizeMB} MB)`;
+                }
+
+                // Show release date
+                const publishDate = new Date(release.published_at).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'long', day: 'numeric'
+                });
+                const noticeEl = document.querySelector('.smartscreen-notice');
+                if (noticeEl) {
+                    const dateNote = document.createElement('div');
+                    dateNote.style.cssText = 'margin-top:12px;font-size:0.85rem;color:var(--text-muted)';
+                    dateNote.textContent = `Latest release: ${release.tag_name} • Published ${publishDate} • ${release.assets.length} platform(s)`;
+                    noticeEl.appendChild(dateNote);
+                }
+
+            } catch(e) {
+                console.log('Could not fetch release info:', e);
+            }
+        }
+
+        // Run on page load
+        updateReleaseInfo();
+
         // ── Screenshot tab switcher ──
         const tabs = document.querySelectorAll('.ss-tab');
         const titleEl = document.getElementById('ss-title');
@@ -719,3 +796,4 @@
     </script>
 </body>
 </html>
+
