@@ -16,12 +16,15 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: WorkSense-Linux
+            zip_name: WorkSense-Linux.zip
             executable_name: WorkSense
           - os: macos-latest
             asset_name: WorkSense-macOS
+            zip_name: WorkSense-macOS.zip
             executable_name: WorkSense
           - os: windows-latest
             asset_name: WorkSense-Windows.exe
+            zip_name: WorkSense-Windows.zip
             executable_name: WorkSense.exe
 
     steps:
@@ -54,11 +57,17 @@ jobs:
           mv dist/${{ matrix.executable_name }} dist/${{ matrix.asset_name }}
         shell: bash
 
+      - name: Create ZIP archive
+        run: |
+          cd dist
+          python -m zipfile -c ${{ matrix.zip_name }} ${{ matrix.asset_name }}
+        shell: bash
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset_name }}
-          path: dist/${{ matrix.asset_name }}
+          name: ${{ matrix.zip_name }}
+          path: dist/${{ matrix.zip_name }}
 
   release:
     name: Create Release
@@ -77,9 +86,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/*.exe
-            dist/**/WorkSense-Linux
-            dist/**/WorkSense-macOS
+            dist/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
