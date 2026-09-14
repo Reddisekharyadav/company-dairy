@@ -128,7 +128,7 @@ def generate_excel(start: datetime, end: datetime, out_folder: str,
         # SHEET 2: Activity Timeline
         # ════════════════════════════════════════════════════════════════════
         ws_timeline = wb.create_sheet('Activity Timeline')
-        headers = ['Timestamp', 'Application', 'Window Title', 'Category', 'Website', 'Duration (sec)']
+        headers = ['Timestamp', 'Application', 'Window Title', 'Category', 'Duration (sec)']
         _style_header(ws_timeline, headers)
 
         timeline_data = []
@@ -138,34 +138,40 @@ def generate_excel(start: datetime, end: datetime, out_folder: str,
                 e.application or '',
                 (e.window_title or '')[:100],
                 e.category or '',
-                e.website or '',
                 round(e.duration or 0, 1),
             ])
         _add_data_rows(ws_timeline, timeline_data)
         _auto_width(ws_timeline)
 
         # ════════════════════════════════════════════════════════════════════
-        # SHEET 3: Websites Visited
+        # SHEET 3: Study & Research Overview
         # ════════════════════════════════════════════════════════════════════
-        ws_sites = wb.create_sheet('Websites & Apps')
-        headers = ['Site', 'Category', 'Total Minutes', 'Visit Count']
+        ws_sites = wb.create_sheet('Study Overview')
+        headers = ['Topic', 'Minutes Spent', 'Key Notes & Summaries']
         _style_header(ws_sites, headers)
 
-        web_map = {}
-        for e in events:
-            if e.website:
-                if e.website not in web_map:
-                    web_map[e.website] = {'seconds': 0, 'category': e.category or 'Other', 'count': 0}
-                web_map[e.website]['seconds'] += e.duration or 0
-                web_map[e.website]['count'] += 1
+        insights = session.query(ActivityInsight).filter(
+            ActivityInsight.timestamp >= start, ActivityInsight.timestamp <= end
+        ).all()
+        
+        topic_map = {}
+        for i in insights:
+            t = i.topic_keywords or "General Activity"
+            if t not in topic_map:
+                topic_map[t] = {'duration': 0, 'summaries': set()}
+            topic_map[t]['duration'] += i.duration_on_tab or 0
+            if i.summary:
+                topic_map[t]['summaries'].add(i.summary)
 
         site_data = []
-        for site, info in sorted(web_map.items(), key=lambda x: -x[1]['seconds']):
+        for topic, info in sorted(topic_map.items(), key=lambda x: -x[1]['duration']):
+            mins = info['duration'] / 60.0
+            if mins < 1.0: continue
+            summaries = " • " + "\n • ".join(list(info['summaries'])[:3])
             site_data.append([
-                site,
-                info['category'],
-                round(info['seconds'] / 60, 1),
-                info['count'],
+                topic.upper(),
+                round(mins, 1),
+                summaries,
             ])
         _add_data_rows(ws_sites, site_data)
         _auto_width(ws_sites)

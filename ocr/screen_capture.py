@@ -74,6 +74,10 @@ class ScreenCaptureWorker:
         SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
         session = SessionLocal()
+        last_proc = None
+        last_title = None
+        last_capture_time = datetime.min
+
         try:
             while not self._stop.is_set():
                 if not is_consent_granted():
@@ -82,6 +86,19 @@ class ScreenCaptureWorker:
 
                 proc, title = get_active_window()
                 ts = datetime.now()
+
+                # Optimization: only capture if window changed or 15 minutes passed
+                window_changed = (proc != last_proc) or (title != last_title)
+                time_elapsed = (ts - last_capture_time).total_seconds()
+
+                if not window_changed and time_elapsed < 900:
+                    time.sleep(self.interval)
+                    continue
+
+                last_proc = proc
+                last_title = title
+                last_capture_time = ts
+
                 screenshot_path = None
                 ocr_text = ''
 

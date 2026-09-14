@@ -1637,7 +1637,7 @@ async function refreshCompanyCharts() {
 
 async function refreshCompanyResearch() {
   try {
-    const sessions = await fetch('/api/research/sessions?days=7').then(r => r.json());
+    const sessions = await fetch('/api/research/sessions?days=30').then(r => r.json());
     const list = document.getElementById('company-research-list');
     if (!sessions.length) { list.innerHTML = '<div class="empty-state">No research activity in the last 7 days.</div>'; return; }
     list.innerHTML = sessions.slice(0, 5).map(s => {
@@ -1687,11 +1687,11 @@ async function refreshCompanyMeetings() {
 
 async function refreshCompanyInsights() {
   try {
-    const data = await fetch('/api/insights?days=1&limit=10').then(r => r.json());
+    const data = await fetch('/api/insights?days=7').then(r => r.json());
     const list = document.getElementById('co-insights-list');
     if (!list) return;
     if (!data.length) { list.innerHTML = '<div class="empty-state">Insights will appear as you work</div>'; return; }
-    list.innerHTML = data.slice(0, 8).map(i => {
+    list.innerHTML = data.slice(0, 15).map(i => {
       const t = i.timestamp ? new Date(i.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
       return `<div class="activity-item" style="flex-direction:column;align-items:flex-start">
         <div style="display:flex;width:100%;margin-bottom:4px">

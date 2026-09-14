@@ -114,6 +114,33 @@ def summarize_events(start: datetime, end: datetime, session_id: str = None) -> 
         browser_lines = _get_browser_history_section(start, end)
         if browser_lines:
             lines.extend(browser_lines)
+
+        # --- AI Research & Study Overview ---
+        from database.models import ActivityInsight
+        session2 = SessionLocal()
+        insights = session2.query(ActivityInsight).filter(
+            ActivityInsight.timestamp >= start, ActivityInsight.timestamp <= end
+        ).all()
+        session2.close()
+
+        topic_map = {}
+        for i in insights:
+            t = i.topic_keywords or "General Activity"
+            if t not in topic_map:
+                topic_map[t] = {'duration': 0, 'summaries': set()}
+            topic_map[t]['duration'] += i.duration_on_tab or 0
+            if i.summary:
+                topic_map[t]['summaries'].add(i.summary)
+        
+        if topic_map:
+            lines.append("\n🧠 AI RESEARCH & STUDY OVERVIEW")
+            lines.append("-" * 40)
+            for topic, data in sorted(topic_map.items(), key=lambda x: -x[1]['duration']):
+                mins = data['duration'] / 60.0
+                if mins < 1.0: continue
+                lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
+                for s in list(data['summaries'])[:2]:  # Top 2 lines
+                    lines.append(f"    - {s}")
     
         # --- Website breakdown (from Events table — fallback) ---
         web_map = {}
@@ -208,13 +235,10 @@ def _get_browser_history_section(start: datetime, end: datetime) -> list[str]:
         for domain, info in sorted(domain_map.items(), key=lambda x: -x[1]['visits'])[:20]:
             name = info['site_name'][:25]
             lines.append(f"  {name:<25} {info['visits']:>6}  {info['category']:<20}")
-            # Show up to 3 pages visited
+            # Show up to 3 pages visited, but omit the raw URL to keep it clean
             for u in info['urls']:
-                title = u['title'][:45]
+                title = u['title'][:65]
                 lines.append(f"    └ [{u['time']}] {title}")
-                if u['url'] != u['title']:
-                    url_short = u['url'][:65]
-                    lines.append(f"      {url_short}")
 
     except Exception as e:
         pass  # BrowserHistory table may not exist on older DBs
