@@ -97,6 +97,28 @@ def index():
             status_code=500,
         )
 
+@app.get("/api/live_status")
+def get_live_status():
+    from database.session import SessionLocal
+    db = SessionLocal()
+    try:
+        from database.models import Event
+        ev = db.query(Event).order_by(Event.timestamp.desc()).first()
+        from tracker.input_tracker import input_tracker
+        state = input_tracker.get_current_state()
+        if ev:
+            return {
+                "app": ev.application or "",
+                "title": ev.window_title or "",
+                "state": state,
+                "idle": ev.idle
+            }
+        return {"state": state, "app": "", "title": "", "idle": False}
+    finally:
+        if db:
+            db.close()
+
+
 
 # ─── Status & Consent ─────────────────────────────────────────────────────────
 
@@ -563,6 +585,7 @@ def api_recent_files(limit: int = 30, days: int = 7):
                     'duration_min': round((r.duration_sec or 0) / 60, 1),
                     'timestamp': r.timestamp.isoformat() if r.timestamp else None,
                     'date': r.session_date,
+                    'editor': r.editor,
                 }
         session.close()
         return JSONResponse(list(seen.values()))

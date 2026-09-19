@@ -59,6 +59,9 @@ class Settings:
         self.email_user = get_val('email_user', 'WS_EMAIL_USER', '')
         self.email_pass = get_val('email_pass', 'WS_EMAIL_PASS', '')
 
+        # ── AI Integration ────────────────────────────────────────────────────
+        self.ai_api_key = get_val('ai_api_key', 'WS_AI_API_KEY', '')
+
     def save(self):
         self.config.update({
             'interval': self.interval,
@@ -71,7 +74,8 @@ class Settings:
             'email_smtp': self.email_smtp,
             'email_port': self.email_port,
             'email_user': self.email_user,
-            'email_pass': self.email_pass
+            'email_pass': self.email_pass,
+            'ai_api_key': self.ai_api_key
         })
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, indent=4)

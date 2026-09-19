@@ -13,6 +13,7 @@ from database.session import SessionLocal
 from database.models import Event, BrowserHistory, FileEdit, GitActivity, Report
 from tracker.active_window import get_active_window
 from tracker.categorizer import categorize_activity, extract_website_name
+from tracker.input_tracker import input_tracker
 import psutil
 import logging
 import os
@@ -48,12 +49,14 @@ class ActivityTracker:
 
     def start(self):
         self._stop.clear()
+        input_tracker.start()
         if not self._thread.is_alive():
             self._thread = Thread(target=self._run, daemon=True)
             self._thread.start()
 
     def stop(self):
         self._stop.set()
+        input_tracker.stop()
         self._thread.join(timeout=2.0)
 
     def _is_idle(self) -> bool:
@@ -191,6 +194,7 @@ class ActivityTracker:
 
         category = categorize_activity(proc_name or '', title or '')
         website = extract_website_name(title or '', proc_name or '')
+        current_input_state = input_tracker.get_current_state()
 
         ev = Event(
             timestamp=datetime.now(),
@@ -202,10 +206,11 @@ class ActivityTracker:
             project=project,
             opened_file=opened_file,
             language=language,
-            cpu=psutil.cpu_percent(interval=None),
+            cpu=psutil.cpu_percent(),
             idle=idle,
             category=category,
             website=website,
+            input_state=current_input_state
         )
         session.add(ev)
         session.commit()

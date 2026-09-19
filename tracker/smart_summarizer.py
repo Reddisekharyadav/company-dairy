@@ -14,6 +14,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from threading import Thread, Event
 from typing import Optional
+import requests
 
 log = logging.getLogger('smart_summarizer')
 
@@ -150,6 +151,27 @@ def _format_duration(seconds: float) -> str:
     mins = minutes % 60
     return f'{hours}h {mins}m'
 
+def _generate_ai_summary(api_key: str, proc: str, title: str, duration: float) -> str:
+    """Use free AI API (Groq) to generate a summary."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        prompt = f"The user spent {duration} seconds on this application: '{proc}' with window title '{title}'. Generate a very brief 1-sentence summary of what they were doing. Start with an action verb (e.g. 'Reading...', 'Writing...', 'Browsing...'). Do not say 'The user was'."
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 50,
+            "temperature": 0.3
+        }
+        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=5)
+        if res.status_code == 200:
+            return res.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        log.warning("AI summary failed: %s", e)
+    return ""
+
 
 class SmartSummarizer:
     """Background thread that tracks per-tab dwell time and generates summaries."""
@@ -243,7 +265,15 @@ class SmartSummarizer:
 
             proc = data['proc']
             title = data['title']
-            summary = _generate_summary(proc, title, duration)
+            
+            from config.settings import settings
+            summary = ""
+            if hasattr(settings, 'ai_api_key') and settings.ai_api_key:
+                summary = _generate_ai_summary(settings.ai_api_key, proc, title, duration)
+                
+            if not summary:
+                summary = _generate_summary(proc, title, duration)
+                
             keywords = _extract_keywords(f'{title} {proc}')
 
             try:

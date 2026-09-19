@@ -39,6 +39,7 @@ class Event(Base):
     extra = Column(Text, nullable=True)
     category = Column(String(64), nullable=True)
     website = Column(String(256), nullable=True)
+    input_state = Column(String(32), nullable=True)
 
 
 class GitActivity(Base):

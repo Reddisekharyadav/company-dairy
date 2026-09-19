@@ -36,32 +36,46 @@ def generate_morning_briefing() -> dict:
             'has_data': snap is not None,
         }
 
-        if snap:
-            files = json.loads(snap.files_json or '[]')
-            topics = json.loads(snap.research_topics_json or '[]')
-            repos = json.loads(snap.repos_touched_json or '[]')
-            cats = json.loads(snap.categories_json or '{}')
+        # --- Always fetch the latest top files and research topics directly ---
+        recent_edits = (session.query(FileEdit)
+                        .order_by(FileEdit.timestamp.desc())
+                        .limit(50).all())
+        seen = {}
+        for r in recent_edits:
+            key = r.file_name or r.file_path
+            if key not in seen:
+                seen[key] = {
+                    'file': r.file_name,
+                    'duration_min': round((r.duration_sec or 0) / 60, 1)
+                }
+        top_files_live = list(seen.values())[:3]
+        
+        from database.models import SearchQuery
+        recent_queries = (session.query(SearchQuery)
+                          .order_by(SearchQuery.timestamp.desc())
+                          .limit(5).all())
+        research_topics_live = [q.query for q in recent_queries]
 
+        if snap:
             hours = (snap.total_active_sec or 0) / 3600
-            top_files = files[:3]
 
             briefing.update({
                 'top_project': snap.top_project,
                 'top_language': snap.top_language,
                 'hours_worked': round(hours, 1),
-                'files_edited_count': len(files),
-                'top_files': top_files,
+                'files_edited_count': len(seen),
+                'top_files': top_files_live,
                 'last_commit': snap.last_commit_message,
-                'repos': repos,
-                'research_topics': topics[:5],
+                'repos': json.loads(snap.repos_touched_json or '[]'),
+                'research_topics': research_topics_live,
                 'search_count': snap.search_count or 0,
-                'categories': cats,
-                'resume_message': _resume_message(snap, top_files),
+                'categories': json.loads(snap.categories_json or '{}'),
+                'resume_message': _resume_message(snap, top_files_live),
             })
         else:
-            # Try raw events from yesterday
+            # Try raw events from today/yesterday
             start = now.replace(hour=0, minute=0, second=0) - timedelta(days=1)
-            end = start + timedelta(days=1)
+            end = start + timedelta(days=2)
             events = (session.query(Event)
                       .filter(Event.timestamp >= start,
                               Event.timestamp <= end,
@@ -70,12 +84,12 @@ def generate_morning_briefing() -> dict:
             total_sec = sum(e.duration or 0 for e in events)
             briefing.update({
                 'hours_worked': round(total_sec / 3600, 1),
-                'files_edited_count': 0,
-                'top_files': [],
+                'files_edited_count': len(seen),
+                'top_files': top_files_live,
                 'last_commit': None,
                 'repos': [],
-                'research_topics': [],
-                'search_count': 0,
+                'research_topics': research_topics_live,
+                'search_count': len(research_topics_live),
                 'categories': {},
                 'resume_message': 'Start fresh today! Your tracking history begins now.',
             })

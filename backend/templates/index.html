@@ -360,7 +360,7 @@
     </div>
     <div class="header-right">
       <span class="clock" id="header-time"></span>
-      <div class="status-pill">
+      <div class="status-pill" id="live-status">
         <div class="status-dot"></div>
         <span>Tracking Active</span>
       </div>
@@ -452,6 +452,15 @@
         <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">SMTP Password (App Password)</label>
         <input type="password" id="set_email_pass" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
         <div style="font-size:0.75rem;color:var(--muted2);margin-top:4px;">For Gmail, use an <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--accent);">App Password</a>.</div>
+      </div>
+    </div>
+    
+    <h4 style="font-size:.85rem;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:6px;">AI Settings</h4>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">Groq API Key (Free)</label>
+        <input type="password" id="set_ai_api_key" placeholder="gsk_..." style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
+        <div style="font-size:0.75rem;color:var(--muted2);margin-top:4px;">Get a free API key from <a href="https://console.groq.com/" target="_blank" style="color:var(--accent);">Groq Console</a> to enable smart insights.</div>
       </div>
     </div>
     
@@ -970,6 +979,8 @@ window.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
   refreshAll();
+  refreshLiveStatus();
+  setInterval(refreshLiveStatus, 2000);
   setInterval(refreshFeed, 10000);
   setInterval(refreshStats, 30000);
   checkConsent();
@@ -1607,6 +1618,14 @@ async function refreshBriefing() {
       });
       html += `</div>`;
     }
+    if (data.research_topics && data.research_topics.length) {
+      html += `<div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:16px;margin-bottom:8px">🔍 Recent Research</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+      data.research_topics.forEach(t => {
+        html += `<span class="cat-badge" style="background:rgba(59,130,246,0.1);color:#60a5fa">${t}</span>`;
+      });
+      html += `</div>`;
+    }
     el.innerHTML = html;
   } catch(e) {}
 }
@@ -1974,6 +1993,7 @@ async function openSettings() {
     document.getElementById('set_email_to').value = data.email_to || '';
     document.getElementById('set_email_user').value = data.email_user || '';
     document.getElementById('set_email_pass').value = data.email_pass || '';
+    document.getElementById('set_ai_api_key').value = data.ai_api_key || '';
   } catch(e) {
     console.error('Failed to load settings', e);
   }
@@ -1987,12 +2007,13 @@ async function saveSettings() {
   const email_to = document.getElementById('set_email_to').value;
   const email_user = document.getElementById('set_email_user').value;
   const email_pass = document.getElementById('set_email_pass').value;
+  const ai_api_key = document.getElementById('set_ai_api_key').value;
   
   try {
     const res = await fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email_to, email_user, email_pass })
+      body: JSON.stringify({ email_to, email_user, email_pass, ai_api_key })
     }).then(r => r.json());
     
     if (res.status === 'ok') {
@@ -2002,6 +2023,29 @@ async function saveSettings() {
   } catch(e) {
     showToast('Failed to save settings', 'error');
   }
+}
+
+// ─── Live Status ─────────────────────────────────────────────────────────────
+async function refreshLiveStatus() {
+  try {
+    const res = await fetch('/api/live_status').then(r => r.json());
+    const el = document.getElementById('live-status');
+    if (el) {
+      if (res.idle) {
+        el.innerHTML = `<div class="status-dot" style="background:var(--yellow)"></div><span>Idle</span>`;
+        el.style.background = 'rgba(251,191,36,.12)';
+        el.style.borderColor = 'rgba(251,191,36,.25)';
+        el.style.color = 'var(--yellow)';
+      } else {
+        const title = res.title ? (res.title.substring(0,25) + '...') : '';
+        const stateStr = res.state ? res.state : 'Tracking';
+        el.innerHTML = `<div class="status-dot"></div><span>${stateStr}: ${res.app} ${title}</span>`;
+        el.style.background = 'rgba(16,185,129,.12)';
+        el.style.borderColor = 'rgba(16,185,129,.25)';
+        el.style.color = 'var(--green)';
+      }
+    }
+  } catch(e) {}
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────

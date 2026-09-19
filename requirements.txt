@@ -20,4 +20,4 @@ rich==13.5.2
 requests==2.31.0
 uvloop==0.17.0; platform_system == "Linux"
 python-dotenv==1.0.0
-openpyxl==3.1.2
+openpyxl==3.1.2pynput==1.7.6

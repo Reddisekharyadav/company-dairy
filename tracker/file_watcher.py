@@ -198,6 +198,7 @@ class FileEditWatcher:
                         file_info = self._extract_file_info(proc or '', title)
                         if file_info:
                             file_path, project, editor = file_info
+                            print(f"FileEditWatcher extracted: path={file_path}, proj={project}, editor={editor}", flush=True)
                             _file_durations[file_path] = _file_durations.get(file_path, 0) + self.interval
                             if editor:
                                 _file_editors[file_path] = editor
@@ -225,17 +226,24 @@ class FileEditWatcher:
         proc_lower = proc.lower()
         if not title:
             return None
+            
+        print(f"FileEditWatcher sees proc={proc}, title={title}", flush=True)
 
-        # Check if this is an IDE process
+        # Check if this is an IDE process (by process name or title fallback)
         ide_procs = ('code', 'pycharm', 'cursor', 'idea', 'webstorm', 'rider',
                      'vim', 'nvim', 'sublime', 'notepad', 'atom', 'clion',
                      'goland', 'rubymine', 'phpstorm', 'fleet', 'zed',
                      'antigravity', 'emacs')
-        if not any(k in proc_lower for k in ide_procs):
+        if not any(k in proc_lower for k in ide_procs) and not any(k in title.lower() for k in ide_procs):
             return None
 
         # Detect IDE name
         editor = _detect_ide(proc)
+        if not editor:
+            for k, name in IDE_PROCESS_MAP.items():
+                if k in title.lower():
+                    editor = name
+                    break
 
         # Normalize dashes
         nt = title.replace('\u2014', ' - ').replace('\u2013', ' - ')

@@ -33,11 +33,21 @@ def _get_active_window_windows() -> Tuple[Optional[str], Optional[str]]:
         import win32process
         import psutil
         hwnd = win32gui.GetForegroundWindow()
-        pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-        proc = psutil.Process(pid)
         title = win32gui.GetWindowText(hwnd)
-        return proc.name(), title
-    except Exception:
+        
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        if pid < 0:
+            pid = pid & 0xFFFFFFFF
+            
+        try:
+            proc = psutil.Process(pid)
+            proc_name = proc.name()
+        except Exception:
+            proc_name = None
+            
+        return proc_name, title
+    except Exception as e:
+        log.warning(f"active_window windows error: {e}")
         return None, None
 
 
