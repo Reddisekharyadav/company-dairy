@@ -22,7 +22,7 @@ TRACKED_EXTENSIONS = {
     '.json', '.yaml', '.yml', '.toml', '.xml',
     '.md', '.mdx', '.rst', '.txt',
     '.sql', '.sh', '.bash', '.ps1', '.bat',
-    '.dockerfile', '.tf', '.hcl',
+    '.dockerfile', '.tf', '.hcl', '.ipynb',
 }
 
 EXT_LANG_MAP = {
@@ -36,6 +36,7 @@ EXT_LANG_MAP = {
     '.sql': 'SQL', '.sh': 'Shell', '.ps1': 'PowerShell',
     '.md': 'Markdown', '.json': 'JSON', '.yaml': 'YAML',
     '.yml': 'YAML', '.toml': 'TOML', '.tf': 'Terraform',
+    '.ipynb': 'Jupyter Notebook',
 }
 
 # Process name â†’ IDE display name
@@ -243,7 +244,7 @@ class FileEditWatcher:
             return None
 
         # First part is usually the filename
-        candidate = parts[0].strip().lstrip('â—  ')  # remove "â— " dirty indicator in VS Code
+        candidate = parts[0].strip().lstrip('● ').strip('*').strip()  # remove dirty indicators
         if not candidate:
             return None
 
@@ -261,10 +262,9 @@ class FileEditWatcher:
         if len(parts) >= 2:
             # Second part is usually the project/folder name
             project_candidate = parts[1].strip()
-            # Skip if it's the IDE name itself
             ide_names = ['Visual Studio Code', 'VS Code', 'PyCharm', 'Cursor',
                          'IntelliJ IDEA', 'WebStorm', 'Sublime Text', 'Notepad++',
-                         'Antigravity']
+                         'Antigravity', 'Antigravity IDE']
             if project_candidate not in ide_names:
                 project = project_candidate
 
@@ -278,6 +278,9 @@ class FileEditWatcher:
             possible_path = os.path.join(folder, file_name)
             if os.path.isfile(possible_path):
                 file_path = os.path.abspath(possible_path)
+
+        if not project and os.path.isabs(file_path):
+            project = _get_project_name(file_path)
 
         return (file_path, project, editor)
 

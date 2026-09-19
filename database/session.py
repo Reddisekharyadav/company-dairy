@@ -39,6 +39,7 @@ def init_db():
     with engine.connect() as conn:
         _add_column_if_missing(conn, 'events', 'category', 'VARCHAR(64)')
         _add_column_if_missing(conn, 'events', 'website', 'VARCHAR(256)')
+        _add_column_if_missing(conn, 'events', 'input_state', 'VARCHAR(64)')
         _add_column_if_missing(conn, 'ocr', 'screenshot_path', 'VARCHAR(2048)')
         # v2.1: file_edits.editor — which IDE was used
         _add_column_if_missing(conn, 'file_edits', 'editor', 'VARCHAR(128)')
