@@ -1,6 +1,7 @@
 """
 Morning Briefing Generator — powers the Company Worker mode.
-Generates a "Good morning" card from yesterday's session snapshot.
+Generates a "Good morning" card from yesterday's session data.
+Now enriched with live activity insights (OCR-derived descriptions).
 """
 import json
 import logging
@@ -13,6 +14,7 @@ def generate_morning_briefing() -> dict:
     """
     Build today's morning briefing from yesterday's session data.
     Returns a dict ready to be serialized to JSON for the API.
+    Now includes live activity insights with OCR summaries.
     """
     try:
         from database.session import SessionLocal
@@ -56,6 +58,34 @@ def generate_morning_briefing() -> dict:
                           .limit(5).all())
         research_topics_live = [q.query for q in recent_queries]
 
+        # --- Fetch live activity insights (OCR-enriched) ---
+        from database.models import ActivityInsight
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        recent_insights = (session.query(ActivityInsight)
+                           .filter(ActivityInsight.timestamp >= today_start)
+                           .order_by(ActivityInsight.timestamp.desc())
+                           .limit(20).all())
+        
+        activity_timeline = []
+        engagement_summary = {'reading': 0, 'active_typing': 0, 'browsing': 0, 'idle_on_tab': 0}
+        
+        for ins in recent_insights:
+            activity_timeline.append({
+                'time': ins.timestamp.strftime('%H:%M') if ins.timestamp else '',
+                'app': ins.app or '',
+                'summary': ins.summary or '',
+                'ocr_summary': ins.ocr_summary if hasattr(ins, 'ocr_summary') else None,
+                'duration_min': round((ins.duration_on_tab or 0) / 60, 1),
+                'engagement': getattr(ins, 'engagement_type', None) or 'unknown',
+                'keywords': ins.topic_keywords or '',
+            })
+            eng = getattr(ins, 'engagement_type', None) or 'idle_on_tab'
+            if eng in engagement_summary:
+                engagement_summary[eng] += (ins.duration_on_tab or 0)
+
+        # Convert engagement seconds to minutes
+        engagement_minutes = {k: round(v / 60, 1) for k, v in engagement_summary.items()}
+
         if snap:
             hours = (snap.total_active_sec or 0) / 3600
 
@@ -71,6 +101,8 @@ def generate_morning_briefing() -> dict:
                 'search_count': snap.search_count or 0,
                 'categories': json.loads(snap.categories_json or '{}'),
                 'resume_message': _resume_message(snap, top_files_live),
+                'activity_timeline': activity_timeline,
+                'engagement': engagement_minutes,
             })
         else:
             # Try raw events from today/yesterday
@@ -92,6 +124,8 @@ def generate_morning_briefing() -> dict:
                 'search_count': len(research_topics_live),
                 'categories': {},
                 'resume_message': 'Start fresh today! Your tracking history begins now.',
+                'activity_timeline': activity_timeline,
+                'engagement': engagement_minutes,
             })
 
         session.close()

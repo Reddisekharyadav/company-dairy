@@ -54,6 +54,8 @@ def init_db():
         _add_column_if_missing(conn, 'browser_history', 'session_id', 'VARCHAR(64)')
         _add_column_if_missing(conn, 'meetings', 'session_id', 'VARCHAR(64)')
         _add_column_if_missing(conn, 'activity_insights', 'session_id', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'activity_insights', 'engagement_type', 'VARCHAR(64)')
+        _add_column_if_missing(conn, 'activity_insights', 'ocr_summary', 'TEXT')
         # v3.2: auto_generated flag for screen analysis notes
         _add_column_if_missing(conn, 'daily_notes', 'auto_generated', 'BOOLEAN DEFAULT 0')
         conn.commit()

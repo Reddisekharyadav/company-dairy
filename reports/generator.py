@@ -29,15 +29,20 @@ def summarize_events(start: datetime, end: datetime, session_id: str = None) -> 
         lines.append(f"Session: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
         lines.append("=" * 60)
         
-        # 1. Topic/Insight Narrative
+        # 1. Topic/Insight Narrative (Enriched with OCR and Engagement)
         topic_map = {}
         for i in insights:
             t = i.topic_keywords or "General Activity"
             if t not in topic_map:
-                topic_map[t] = {'duration': 0, 'summaries': set()}
+                topic_map[t] = {'duration': 0, 'summaries': set(), 'engagements': {}}
             topic_map[t]['duration'] += i.duration_on_tab or 0
-            if i.summary:
-                topic_map[t]['summaries'].add(i.summary)
+            
+            summary_text = getattr(i, 'ocr_summary', None) or i.summary
+            if summary_text:
+                topic_map[t]['summaries'].add(summary_text)
+                
+            eng = getattr(i, 'engagement_type', 'idle_on_tab')
+            topic_map[t]['engagements'][eng] = topic_map[t]['engagements'].get(eng, 0) + (i.duration_on_tab or 0)
         
         if topic_map:
             lines.append("\n🧠 KEY TOPICS & FOCUS AREAS")
@@ -46,6 +51,14 @@ def summarize_events(start: datetime, end: datetime, session_id: str = None) -> 
                 mins = data['duration'] / 60.0
                 if mins < 1.0: continue
                 lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
+                
+                # Show top engagements
+                if data['engagements']:
+                    eng_str = ", ".join(f"{k}: {v/60.0:.1f}m" for k, v in data['engagements'].items() if v > 60)
+                    if eng_str:
+                        lines.append(f"    - Engagement: {eng_str}")
+                
+                # Show top summaries
                 for s in list(data['summaries'])[:3]:  # Top 3 summaries
                     lines.append(f"    - {s}")
         
@@ -127,10 +140,15 @@ def summarize_events(start: datetime, end: datetime, session_id: str = None) -> 
         for i in insights:
             t = i.topic_keywords or "General Activity"
             if t not in topic_map:
-                topic_map[t] = {'duration': 0, 'summaries': set()}
+                topic_map[t] = {'duration': 0, 'summaries': set(), 'engagements': {}}
             topic_map[t]['duration'] += i.duration_on_tab or 0
-            if i.summary:
-                topic_map[t]['summaries'].add(i.summary)
+            
+            summary_text = getattr(i, 'ocr_summary', None) or i.summary
+            if summary_text:
+                topic_map[t]['summaries'].add(summary_text)
+                
+            eng = getattr(i, 'engagement_type', 'idle_on_tab')
+            topic_map[t]['engagements'][eng] = topic_map[t]['engagements'].get(eng, 0) + (i.duration_on_tab or 0)
         
         if topic_map:
             lines.append("\n🧠 AI RESEARCH & STUDY OVERVIEW")
@@ -139,7 +157,14 @@ def summarize_events(start: datetime, end: datetime, session_id: str = None) -> 
                 mins = data['duration'] / 60.0
                 if mins < 1.0: continue
                 lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
-                for s in list(data['summaries'])[:2]:  # Top 2 lines
+                
+                # Show top engagements
+                if data['engagements']:
+                    eng_str = ", ".join(f"{k}: {v/60.0:.1f}m" for k, v in data['engagements'].items() if v > 60)
+                    if eng_str:
+                        lines.append(f"    - Engagement: {eng_str}")
+                        
+                for s in list(data['summaries'])[:3]:  # Top 3 lines
                     lines.append(f"    - {s}")
     
         # --- Website breakdown (from Events table — fallback) ---

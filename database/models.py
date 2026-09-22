@@ -210,3 +210,6 @@ class ActivityInsight(Base):
     topic_keywords = Column(String(512), nullable=True)  # "asyncio, python, event loop"
     duration_on_tab = Column(Float, default=0.0)         # seconds on this specific tab
     session_date = Column(String(20))
+    engagement_type = Column(String(32), nullable=True)  # "reading", "active_typing", "idle_on_tab", "browsing"
+    ocr_summary = Column(String(1024), nullable=True)    # Short description from OCR text
+

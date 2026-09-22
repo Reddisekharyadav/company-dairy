@@ -235,7 +235,9 @@ def api_insights(days: int = 1):
             "title": r.window_title,
             "insight_text": r.summary,
             "topic": r.topic_keywords,
-            "duration_sec": r.duration_on_tab
+            "duration_sec": r.duration_on_tab,
+            "engagement_type": getattr(r, 'engagement_type', None),
+            "ocr_summary": getattr(r, 'ocr_summary', None),
         } for r in rows])
     finally:
         session.close()
@@ -563,10 +565,10 @@ def _period_start(period: str, now: datetime) -> datetime:
 
 @app.get('/api/files/recent')
 def api_recent_files(limit: int = 30, days: int = 7):
-    """Return recently edited files for the Dev Files tab."""
+    """Return recently edited files for the Dev Files tab, enriched with activity insights."""
     try:
         session = SessionLocal()
-        from database.models import FileEdit
+        from database.models import FileEdit, ActivityInsight
         since = datetime.now() - timedelta(days=days)
         rows = (session.query(FileEdit)
                 .filter(FileEdit.timestamp >= since)
@@ -577,6 +579,18 @@ def api_recent_files(limit: int = 30, days: int = 7):
         for r in rows:
             key = r.file_name or r.file_path
             if key not in seen:
+                # Find the closest activity insight for this file's time window
+                insight_summary = None
+                if r.timestamp:
+                    t_start = r.timestamp - timedelta(minutes=5)
+                    t_end = r.timestamp + timedelta(minutes=5)
+                    insight = (session.query(ActivityInsight)
+                               .filter(ActivityInsight.timestamp >= t_start,
+                                       ActivityInsight.timestamp <= t_end)
+                               .order_by(ActivityInsight.timestamp.desc())
+                               .first())
+                    if insight:
+                        insight_summary = getattr(insight, 'ocr_summary', None) or insight.summary
                 seen[key] = {
                     'file': r.file_name,
                     'path': r.file_path,
@@ -586,6 +600,7 @@ def api_recent_files(limit: int = 30, days: int = 7):
                     'timestamp': r.timestamp.isoformat() if r.timestamp else None,
                     'date': r.session_date,
                     'editor': r.editor,
+                    'insight': insight_summary,
                 }
         session.close()
         return JSONResponse(list(seen.values()))
@@ -874,9 +889,9 @@ def api_meetings(days: int = 7):
 
 # ── AI Activity Insights API ─────────────────────────────────────────────────
 
-@app.get('/api/insights')
-def api_insights(days: int = 1, limit: int = 50):
-    """Return AI-generated activity insights."""
+@app.get('/api/insights/detailed')
+def api_insights_detailed(days: int = 1, limit: int = 50):
+    """Return AI-generated activity insights with OCR summaries and engagement type."""
     try:
         session = SessionLocal()
         from database.models import ActivityInsight
@@ -894,6 +909,8 @@ def api_insights(days: int = 1, limit: int = 50):
             'keywords': r.topic_keywords,
             'duration_min': round((r.duration_on_tab or 0) / 60, 1),
             'date': r.session_date,
+            'engagement_type': getattr(r, 'engagement_type', None),
+            'ocr_summary': getattr(r, 'ocr_summary', None),
         } for r in rows]
         session.close()
         return JSONResponse(data)

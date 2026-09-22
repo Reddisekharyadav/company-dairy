@@ -806,21 +806,38 @@
     </div>
   </div>
 
-  <!-- Meetings Section -->
+  <!-- Activity Timeline — What You Did Today -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><span class="icon">📋</span> What You Did Today</div>
+    <div id="co-activity-timeline" class="activity-list" style="max-height:350px;overflow-y:auto">
+      <div class="empty-state">Activity summaries will appear as you work</div>
+    </div>
+  </div>
+
+  <!-- Engagement Breakdown + Meetings -->
   <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> Engagement Breakdown</div>
+      <div id="co-engagement" style="padding:8px 0">
+        <div class="empty-state">Tracking engagement…</div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-title"><span class="icon">📹</span> Meetings Today</div>
       <div id="co-meetings-list" class="activity-list" style="max-height:280px">
         <div class="empty-state">No meetings detected today</div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title"><span class="icon">🧠</span> AI Activity Insights</div>
-      <div id="co-insights-list" class="activity-list" style="max-height:280px">
-        <div class="empty-state">Insights will appear as you work</div>
-      </div>
+  </div>
+
+  <!-- AI Insights -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><span class="icon">🧠</span> AI Activity Insights</div>
+    <div id="co-insights-list" class="activity-list" style="max-height:280px">
+      <div class="empty-state">Insights will appear as you work</div>
     </div>
   </div>
+
 
   <!-- Project Summary Chart -->
   <div class="grid g2" style="margin-bottom:20px">
@@ -1479,16 +1496,22 @@ async function refreshDevFiles() {
     list.innerHTML = files.map(f => {
       const langKey = (f.language || '').toLowerCase().replace(/[^a-z]/g,'');
       const bgClass = `lang-${langKey}`;
-      return `<div class="file-item">
-        <div class="file-lang-dot ${bgClass}" title="${f.language || 'Unknown'}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="file-name" title="${f.path || f.file}">${f.file}</div>
-          ${f.project ? `<div class="file-project">📁 ${f.project}</div>` : ''}
+      const insightHtml = f.insight ? `<div style="font-size:0.75rem; color:var(--text); background:var(--surface2); padding:4px 8px; border-radius:4px; margin-top:4px; border-left:2px solid var(--accent)">${f.insight}</div>` : '';
+      return `<div class="file-item" style="flex-direction:column; align-items:stretch;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; flex:1; min-width:0;">
+            <div class="file-lang-dot ${bgClass}" title="${f.language || 'Unknown'}"></div>
+            <div>
+              <div class="file-name" title="${f.path || f.file}">${f.file}</div>
+              ${f.project ? `<div class="file-project">📁 ${f.project}</div>` : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="file-dur">${f.duration_min} min</div>
+            <div class="file-date">${f.date || ''}</div>
+          </div>
         </div>
-        <div style="text-align:right">
-          <div class="file-dur">${f.duration_min} min</div>
-          <div class="file-date">${f.date || ''}</div>
-        </div>
+        ${insightHtml}
       </div>`;
     }).join('');
 
@@ -1627,7 +1650,67 @@ async function refreshBriefing() {
       html += `</div>`;
     }
     el.innerHTML = html;
-  } catch(e) {}
+
+    // ── Activity Timeline ──
+    const tlEl = document.getElementById('co-activity-timeline');
+    if (tlEl && data.activity_timeline && data.activity_timeline.length) {
+      const engColors = {reading:'#10b981',active_typing:'#3b82f6',browsing:'#f59e0b',idle_on_tab:'#64748b'};
+      const engIcons = {reading:'📖',active_typing:'⌨️',browsing:'🌐',idle_on_tab:'💤'};
+      let tlHtml = '';
+      data.activity_timeline.forEach(a => {
+        const engColor = engColors[a.engagement] || '#64748b';
+        const engIcon = engIcons[a.engagement] || '•';
+        const desc = a.ocr_summary || a.summary || 'Active';
+        tlHtml += `<div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="min-width:50px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted2);padding-top:2px">${a.time}</div>
+          <div style="flex:1">
+            <div style="font-size:.85rem;font-weight:500;margin-bottom:3px">${desc}</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:.72rem;color:${engColor};background:${engColor}15;padding:2px 8px;border-radius:10px">${engIcon} ${a.engagement}</span>
+              <span style="font-size:.72rem;color:var(--muted)">${a.duration_min}m</span>
+              ${a.app ? `<span style="font-size:.72rem;color:var(--muted2)">${a.app}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+      });
+      tlEl.innerHTML = tlHtml;
+    }
+
+    // ── Engagement Breakdown ──
+    const engEl = document.getElementById('co-engagement');
+    if (engEl && data.engagement) {
+      const e = data.engagement;
+      const total = (e.reading||0) + (e.active_typing||0) + (e.browsing||0) + (e.idle_on_tab||0);
+      const pct = (v) => total > 0 ? Math.round((v/total)*100) : 0;
+      engEl.innerHTML = `
+        <div style="margin-bottom:12px">
+          <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px">
+            <div style="flex:${e.reading||0};background:#10b981;border-radius:4px" title="Reading"></div>
+            <div style="flex:${e.active_typing||0};background:#3b82f6;border-radius:4px" title="Typing"></div>
+            <div style="flex:${e.browsing||0};background:#f59e0b;border-radius:4px" title="Browsing"></div>
+            <div style="flex:${e.idle_on_tab||0};background:#64748b;border-radius:4px" title="Idle"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+            <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block"></span>
+            Reading: <strong>${e.reading||0}m</strong> <span style="color:var(--muted);font-size:.7rem">(${pct(e.reading||0)}%)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+            <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block"></span>
+            Typing: <strong>${e.active_typing||0}m</strong> <span style="color:var(--muted);font-size:.7rem">(${pct(e.active_typing||0)}%)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+            <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+            Browsing: <strong>${e.browsing||0}m</strong> <span style="color:var(--muted);font-size:.7rem">(${pct(e.browsing||0)}%)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+            <span style="width:8px;height:8px;border-radius:50%;background:#64748b;display:inline-block"></span>
+            Idle: <strong>${e.idle_on_tab||0}m</strong> <span style="color:var(--muted);font-size:.7rem">(${pct(e.idle_on_tab||0)}%)</span>
+          </div>
+        </div>`;
+    }
+  } catch(e) { console.error('refreshBriefing error:', e); }
 }
 
 async function refreshCompanyCharts() {
