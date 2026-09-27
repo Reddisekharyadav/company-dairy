@@ -235,21 +235,24 @@ def _detect_engagement(input_state: str, dwell_seconds: float,
     return 'idle_on_tab'
 
 
-def _generate_ai_summary(api_key: str, proc: str, title: str, duration: float) -> str:
-    """Use free AI API (Groq) to generate a summary."""
+def _generate_ai_summary(api_key: str, proc: str, title: str, duration: float, ocr_text: str = '') -> str:
+    """Use AI API (OpenRouter) to generate a summary."""
     try:
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "WorkSense AI"
         }
-        prompt = f"The user spent {duration} seconds on this application: '{proc}' with window title '{title}'. Generate a very brief 1-sentence summary of what they were doing. Start with an action verb (e.g. 'Reading...', 'Writing...', 'Browsing...'). Do not say 'The user was'."
+        ocr_context = f"\nScreen text context: {ocr_text[:500]}" if ocr_text else ""
+        prompt = f"The user spent {duration} seconds on this application: '{proc}' with window title '{title}'.{ocr_context}\nGenerate a very brief 1-sentence summary of what they were doing. Start with an action verb (e.g. 'Reading...', 'Writing...', 'Browsing...'). Do not say 'The user was'."
         payload = {
-            "model": "llama3-8b-8192",
+            "model": "meta-llama/llama-3.1-8b-instruct",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 50,
             "temperature": 0.3
         }
-        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=5)
+        res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=5)
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
@@ -415,7 +418,7 @@ class SmartSummarizer:
             from config.settings import settings
             summary = ""
             if hasattr(settings, 'ai_api_key') and settings.ai_api_key:
-                summary = _generate_ai_summary(settings.ai_api_key, proc, title, duration)
+                summary = _generate_ai_summary(settings.ai_api_key, proc, title, duration, ocr_text)
                 
             if not summary:
                 summary = _generate_summary(proc, title, duration, ocr_text)

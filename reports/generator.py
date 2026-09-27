@@ -408,3 +408,122 @@ def generate_pdf(start: datetime, end: datetime, out_folder: str):
     
     c.save()
     return fname
+
+
+def generate_recall_report(start: datetime, end: datetime, output_dir: str) -> str:
+    """
+    Generate an enhanced Microsoft Recall-style activity report.
+    Includes: screen analysis categories, dedup stats, topic clustering,
+    hourly activity heatmap data, and top activities per hour.
+    """
+    import json
+    session = SessionLocal()
+
+    try:
+        from database.models import ScreenFrame, ActivityInsight
+
+        # Get screen frames for the period
+        frames = (session.query(ScreenFrame)
+                  .filter(ScreenFrame.timestamp >= start,
+                          ScreenFrame.timestamp <= end,
+                          ScreenFrame.is_duplicate == False)
+                  .order_by(ScreenFrame.timestamp.asc())
+                  .all())
+
+        # Category breakdown
+        categories = {}
+        hourly_activity = {h: [] for h in range(24)}
+        topics = {}
+
+        for f in frames:
+            cat = f.detected_category or 'other'
+            categories[cat] = categories.get(cat, 0) + 1
+
+            if f.timestamp:
+                hour = f.timestamp.hour
+                hourly_activity[hour].append({
+                    'app': f.process_name,
+                    'summary': f.analysis_summary or f.window_title,
+                    'category': cat,
+                })
+
+            # Extract topic keywords from OCR text
+            if f.ocr_text and len(f.ocr_text) > 50:
+                words = f.ocr_text.lower().split()
+                for word in words:
+                    if len(word) > 4 and word.isalpha():
+                        topics[word] = topics.get(word, 0) + 1
+
+        # Get AI insights
+        insights = (session.query(ActivityInsight)
+                    .filter(ActivityInsight.timestamp >= start,
+                            ActivityInsight.timestamp <= end)
+                    .all())
+
+        # Sort topics by frequency
+        top_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:20]
+
+        # Build the report
+        lines = []
+        lines.append(f"# 🔍 WorkSense Recall Report")
+        lines.append(f"## Period: {start.strftime('%Y-%m-%d %H:%M')} — {end.strftime('%Y-%m-%d %H:%M')}")
+        lines.append("")
+        lines.append(f"### 📊 Screen Analysis Summary")
+        lines.append(f"- **Total unique frames captured:** {len(frames)}")
+        lines.append(f"- **Activity categories detected:** {len(categories)}")
+        lines.append("")
+
+        if categories:
+            lines.append("| Category | Frames | % |")
+            lines.append("|:---------|-------:|--:|")
+            total = sum(categories.values())
+            for cat, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
+                pct = round(count / total * 100, 1)
+                lines.append(f"| {cat} | {count} | {pct}% |")
+            lines.append("")
+
+        # Hourly activity heatmap
+        lines.append("### ⏰ Hourly Activity")
+        lines.append("")
+        for hour in range(24):
+            activities = hourly_activity[hour]
+            if activities:
+                count = len(activities)
+                bar = "█" * min(count, 20)
+                top_app = max(set(a['app'] for a in activities),
+                             key=lambda x: sum(1 for a in activities if a['app'] == x))
+                lines.append(f"  {hour:02d}:00  {bar} ({count} frames) — {top_app}")
+        lines.append("")
+
+        # Top topics
+        if top_topics:
+            lines.append("### 🏷️ Top Topics Detected")
+            for word, count in top_topics:
+                lines.append(f"  - **{word}** ({count} mentions)")
+            lines.append("")
+
+        # AI Insights summary
+        if insights:
+            lines.append(f"### 🧠 AI Activity Insights ({len(insights)} total)")
+            for ins in insights[:15]:
+                emoji = {'reading': '📖', 'active_typing': '⌨️',
+                         'browsing': '🌐', 'idle_on_tab': '💤'}.get(
+                    ins.engagement_type or '', '📋')
+                lines.append(f"  {emoji} {ins.summary or 'N/A'}")
+            lines.append("")
+
+        report_text = "\n".join(lines)
+
+        # Save as Markdown
+        date_str = start.strftime('%Y%m%d')
+        fname = os.path.join(output_dir, f'recall_report_{date_str}.md')
+        with open(fname, 'w', encoding='utf-8') as f:
+            f.write(report_text)
+
+        return fname
+
+    except ImportError as e:
+        # ScreenFrame model not available — return basic report
+        return summarize_events(start, end)
+    finally:
+        session.close()

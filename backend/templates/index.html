@@ -397,6 +397,9 @@
     <button class="p-tab" id="tab-memory" onclick="switchTab('memory')">
       <span class="tab-icon">🧠</span> Memory Search
     </button>
+    <button class="p-tab" id="tab-timeline" onclick="switchTab('timeline')">
+      <span class="tab-icon">⏪</span> Timeline
+    </button>
   </div>
 </nav>
 
@@ -419,15 +422,6 @@
 
 <!-- ── CONSENT BANNER ────────────────────────────────────────────────────────── -->
 <div id="consent-banner" style="display:none">
-  <div style="flex:1;min-width:200px">
-    <strong style="color:var(--accent2)">🖥️ Enable Screen Capture?</strong>
-    <p style="color:var(--muted);font-size:.83rem;margin-top:4px">WorkSense AI can take screenshots every 30s to understand what you're doing. All data stays 100% local.</p>
-  </div>
-  </div>
-  <div style="display:flex;gap:10px">
-    <button class="btn btn-success" onclick="grantConsent()">✓ Allow</button>
-    <button class="btn btn-ghost" onclick="dismissConsent()">✕ No Thanks</button>
-  </div>
 </div>
 
 <!-- ── SETTINGS MODAL ────────────────────────────────────────────────────────── -->
@@ -458,9 +452,9 @@
     <h4 style="font-size:.85rem;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:6px;">AI Settings</h4>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
       <div>
-        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">Groq API Key (Free)</label>
-        <input type="password" id="set_ai_api_key" placeholder="gsk_..." style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
-        <div style="font-size:0.75rem;color:var(--muted2);margin-top:4px;">Get a free API key from <a href="https://console.groq.com/" target="_blank" style="color:var(--accent);">Groq Console</a> to enable smart insights.</div>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">OpenRouter API Key</label>
+        <input type="password" id="set_ai_api_key" placeholder="sk-or-v1-..." style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;">
+        <div style="font-size:0.75rem;color:var(--muted2);margin-top:4px;">Get a free API key from <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent);">OpenRouter</a> to enable AI-powered insights.</div>
       </div>
     </div>
     
@@ -474,7 +468,7 @@
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!-- MEMORY SEARCH PANEL                                                        -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div class="panel hidden" id="panel-memory">
+<div class="panel" id="panel-memory">
   <div class="card" style="margin-bottom:20px;">
     <div class="card-title"><span class="icon">🔍</span> Photographic Memory Search</div>
     <div style="display:flex;gap:10px;margin-bottom:20px;">
@@ -484,6 +478,28 @@
     <div id="memory-results" class="activity-list" style="max-height:600px;">
       <div style="color:var(--muted);font-size:.9rem;text-align:center;padding:40px;">Enter a query to search your visual history.</div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TIMELINE PANEL                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-timeline">
+  <div class="card" style="margin-bottom:20px; overflow: hidden; display: flex; flex-direction: column;">
+    <div class="card-title"><span class="icon">⏪</span> Visual Timeline (Microsoft Recall Clone)</div>
+    
+    <div id="timeline-stage" style="position: relative; width: 100%; height: 60vh; background: #000; border-radius: 8px; margin-bottom: 20px;">
+        <img id="timeline-image" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" src="" />
+        <svg id="timeline-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto;" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1920 1080"></svg>
+        <div id="timeline-tooltip" style="position:absolute; display:none; background: rgba(0,0,0,0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; z-index: 10; pointer-events: none; border: 1px solid var(--accent);">Tooltip</div>
+    </div>
+    
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <div id="timeline-metadata" style="color: var(--muted); font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">Loading timeline...</div>
+      <button class="btn btn-secondary btn-sm" onclick="loadTimeline()">↻ Reload Timeline</button>
+    </div>
+    
+    <input type="range" id="timeline-slider" min="0" max="0" value="0" style="width: 100%; cursor: pointer;" oninput="onScrubTimeline()">
   </div>
 </div>
 
@@ -2137,6 +2153,118 @@ function showToast(msg, type='') {
   t.textContent = msg; t.className = `show ${type}`;
   setTimeout(() => t.className = '', 3500);
 }
+// ─── Visual Timeline (Microsoft Recall Clone) ─────────────────────────────────
+let timelineFrames = [];
+
+async function loadTimeline() {
+  try {
+    const res = await fetch('/api/timeline?limit=100').then(r => r.json());
+    timelineFrames = res.frames || [];
+    if (timelineFrames.length > 0) {
+      const slider = document.getElementById('timeline-slider');
+      slider.max = timelineFrames.length - 1;
+      slider.value = timelineFrames.length - 1; // Start at latest
+      onScrubTimeline();
+    } else {
+      document.getElementById('timeline-metadata').textContent = 'No frames available yet.';
+    }
+  } catch (e) {
+    console.error("Timeline error:", e);
+  }
+}
+
+function onScrubTimeline() {
+  if (!timelineFrames.length) return;
+  const slider = document.getElementById('timeline-slider');
+  const index = parseInt(slider.value);
+  const frame = timelineFrames[index];
+  if (!frame) return;
+  
+  // 1. Update image (Reverse chronological or chronological - assume index 0 is oldest or newest, 
+  // API returns order_by desc, so index 0 is newest, index N is oldest)
+  // Let's reverse the array if we want left to right = oldest to newest
+  // Just use /api/screenshot/id
+  document.getElementById('timeline-image').src = `/api/screenshot/${frame.id}`;
+  
+  // 2. Update metadata text
+  const timeStr = frame.timestamp ? new Date(frame.timestamp).toLocaleString() : '';
+  let metaHtml = `<strong>${timeStr}</strong> | ${frame.process_name} - ${frame.window_title}`;
+  if (frame.is_duplicate) metaHtml += ` <span style="color:var(--yellow)">(Duplicate)</span>`;
+  document.getElementById('timeline-metadata').innerHTML = metaHtml;
+  
+  // 3. Draw OmniParser bounding boxes on SVG
+  const svg = document.getElementById('timeline-svg');
+  svg.innerHTML = ''; // clear previous
+  
+  if (frame.omniparser_json && frame.omniparser_json.elements) {
+    // We assume the original image size is known or we map it to 1920x1080 viewBox
+    // For now, draw rects
+    frame.omniparser_json.elements.forEach(el => {
+      let bbox = el.bbox;
+      if (!bbox || bbox.length < 4) return;
+      
+      let x, y, w, h;
+      if (bbox.length === 8) {
+          // Quad: x1,y1... x4,y4 -> map to simple rect
+          x = Math.min(bbox[0], bbox[2], bbox[4], bbox[6]);
+          y = Math.min(bbox[1], bbox[3], bbox[5], bbox[7]);
+          const maxX = Math.max(bbox[0], bbox[2], bbox[4], bbox[6]);
+          const maxY = Math.max(bbox[1], bbox[3], bbox[5], bbox[7]);
+          w = maxX - x;
+          h = maxY - y;
+      } else {
+          // Standard bbox: x, y, x2, y2 (or x, y, w, h depending on output)
+          // Florence dense caption usually gives x1, y1, x2, y2
+          x = bbox[0];
+          y = bbox[1];
+          w = bbox[2] - bbox[0];
+          h = bbox[3] - bbox[1];
+      }
+      
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', w);
+      rect.setAttribute('height', h);
+      rect.setAttribute('fill', 'transparent');
+      rect.setAttribute('stroke', el.interactivity ? 'var(--accent)' : 'rgba(255,255,255,0.4)');
+      rect.setAttribute('stroke-width', '2');
+      rect.style.cursor = el.interactivity ? 'pointer' : 'default';
+      
+      // Hover Tooltip
+      rect.addEventListener('mouseenter', (e) => {
+        const tooltip = document.getElementById('timeline-tooltip');
+        tooltip.style.display = 'block';
+        tooltip.textContent = `[${el.type}] ${el.label}`;
+        tooltip.style.left = (e.clientX + 10) + 'px';
+        tooltip.style.top = (e.clientY + 10) + 'px';
+        rect.setAttribute('fill', 'rgba(59,130,246,0.2)');
+      });
+      rect.addEventListener('mousemove', (e) => {
+        const tooltip = document.getElementById('timeline-tooltip');
+        tooltip.style.left = (e.clientX + 10) + 'px';
+        tooltip.style.top = (e.clientY + 10) + 'px';
+      });
+      rect.addEventListener('mouseleave', () => {
+        document.getElementById('timeline-tooltip').style.display = 'none';
+        rect.setAttribute('fill', 'transparent');
+      });
+      
+      svg.appendChild(rect);
+    });
+  }
+}
+
+// Ensure timeline loads when tab is switched to it
+const originalSwitchTab = switchTab;
+switchTab = function(tab) {
+  originalSwitchTab(tab);
+  if (tab === 'timeline') {
+    if (timelineFrames.length === 0) {
+      loadTimeline();
+    }
+  }
+};
 </script>
 </body>
 </html>

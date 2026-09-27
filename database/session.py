@@ -17,8 +17,20 @@ DB_PATH = _get_db_path()
 DB_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine)
 
+from sqlalchemy import event
+try:
+    import sqlite_vec
+    @event.listens_for(engine, "connect")
+    def _load_sqlite_vec(dbapi_connection, connection_record):
+        dbapi_connection.enable_load_extension(True)
+        sqlite_vec.load(dbapi_connection)
+        dbapi_connection.enable_load_extension(False)
+    log.info("sqlite-vec extension registered.")
+except ImportError:
+    log.warning("sqlite-vec not installed, semantic vector search won't be available.")
+
+SessionLocal = sessionmaker(bind=engine)
 
 def _add_column_if_missing(conn, table: str, column: str, col_type: str):
     """SQLite-compatible: add a column only if it doesn't exist."""
@@ -35,6 +47,15 @@ def _add_column_if_missing(conn, table: str, column: str, col_type: str):
 def init_db():
     from .models import Base
     Base.metadata.create_all(bind=engine)
+
+    # Enable WAL mode for better concurrent write performance
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("PRAGMA journal_mode=WAL"))
+            conn.execute(text("PRAGMA busy_timeout=5000"))
+        except Exception as e:
+            log.debug("WAL mode setup: %s", e)
+
     # Migrate existing DB: add new columns if missing
     with engine.connect() as conn:
         _add_column_if_missing(conn, 'events', 'category', 'VARCHAR(64)')
@@ -58,5 +79,40 @@ def init_db():
         _add_column_if_missing(conn, 'activity_insights', 'ocr_summary', 'TEXT')
         # v3.2: auto_generated flag for screen analysis notes
         _add_column_if_missing(conn, 'daily_notes', 'auto_generated', 'BOOLEAN DEFAULT 0')
+
+        # v4.0: FTS5 full-text search index for OCR text
+        try:
+            conn.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS ocr_fts USING fts5(
+                    text, source, content='ocr', content_rowid='id'
+                )
+            """))
+            log.info("FTS5 virtual table 'ocr_fts' ready.")
+        except Exception as e:
+            log.debug("FTS5 setup skipped (may need newer SQLite): %s", e)
+
+        # v4.0: FTS5 for screen_frames OCR text
+        try:
+            conn.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS screen_frames_fts USING fts5(
+                    ocr_text, window_title, analysis_summary,
+                    content='screen_frames', content_rowid='id'
+                )
+            """))
+            log.info("FTS5 virtual table 'screen_frames_fts' ready.")
+        except Exception as e:
+            log.debug("screen_frames FTS5 setup skipped: %s", e)
+
+        # v4.0: sqlite-vec vector table for semantic search
+        try:
+            conn.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS screen_frames_vec USING vec0(
+                    embedding float[384]
+                )
+            """))
+            log.info("sqlite-vec virtual table 'screen_frames_vec' ready.")
+        except Exception as e:
+            log.debug("sqlite-vec setup skipped: %s", e)
+
         conn.commit()
 

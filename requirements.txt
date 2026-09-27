@@ -20,4 +20,17 @@ rich==13.5.2
 requests==2.31.0
 uvloop==0.17.0; platform_system == "Linux"
 python-dotenv==1.0.0
-openpyxl==3.1.2pynput==1.7.6
+openpyxl==3.1.2
+pynput==1.7.6
+
+# ── v4.0: Microsoft Recall-inspired features ─────────────────────────────────
+# Semantic search embeddings
+sentence-transformers>=2.2.0
+# For fast OCR on Windows
+winocr>=0.0.3; sys_platform == 'win32'
+# For Vector DB integration
+sqlite-vec
+# For Florence-2 and OmniParser
+transformers
+torch
+torchvision

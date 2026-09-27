@@ -213,3 +213,47 @@ class ActivityInsight(Base):
     engagement_type = Column(String(32), nullable=True)  # "reading", "active_typing", "idle_on_tab", "browsing"
     ocr_summary = Column(String(1024), nullable=True)    # Short description from OCR text
 
+
+# ── Screen Frame (Deduped Screenshot Storage — Recall-Like) ───────────────────
+
+class ScreenFrame(Base):
+    """
+    Stores deduped screenshots with perceptual hash, compressed WebP images,
+    vector embeddings, and structured metadata. Core model for Microsoft
+    Recall-like visual timeline and semantic search.
+    """
+    __tablename__ = "screen_frames"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    session_date = Column(String(20), index=True)
+
+    # Screenshot storage
+    screenshot_path = Column(String(2048), nullable=True)   # Path to WebP file
+    file_size_bytes = Column(Integer, default=0)             # Compressed file size
+
+    # Window context
+    process_name = Column(String(256), nullable=True)
+    window_title = Column(String(1024), nullable=True)
+    monitor_index = Column(Integer, default=1)
+
+    # Deduplication
+    phash = Column(String(32), nullable=True, index=True)    # Perceptual hash (hex string)
+    is_duplicate = Column(Boolean, default=False)             # Flagged but kept for timeline
+
+    # OCR & analysis
+    ocr_text = Column(Text, nullable=True)                    # Full extracted text
+    ocr_text_length = Column(Integer, default=0)              # For quick filtering
+    analysis_summary = Column(String(1024), nullable=True)    # What user is doing
+    detected_category = Column(String(64), nullable=True)     # coding, browsing, meeting, etc.
+
+    # Vector embedding (stored as JSON array of floats)
+    embedding_json = Column(Text, nullable=True)              # JSON serialized 384-dim vector
+    embedding_blob = Column(Text, nullable=True)              # Blob or string for sqlite-vec
+
+    # OmniParser UI structured output
+    omniparser_json = Column(Text, nullable=True)
+
+    # Privacy
+    privacy_scrubbed = Column(Boolean, default=False)         # True if PII was redacted
+

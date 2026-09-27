@@ -1025,3 +1025,265 @@ def api_files_detailed(days: int = 7, limit: int = 30):
         return JSONResponse({'error': str(e)}, status_code=500)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── Microsoft Recall-Inspired API Endpoints (v4.0) ────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.get('/api/search')
+def api_search(q: str = '', mode: str = 'hybrid', limit: int = 20):
+    """
+    Hybrid search across all captured screen content.
+    Modes: 'keyword' (FTS5), 'semantic' (vector), 'hybrid' (RRF fusion)
+    """
+    if not q.strip():
+        return JSONResponse({'results': [], 'query': '', 'mode': mode})
+    try:
+        from ocr.search_engine import HybridSearchEngine
+        engine = HybridSearchEngine()
+        if mode == 'keyword':
+            results = engine.search_keyword(q, limit=limit)
+        elif mode == 'semantic':
+            results = engine.search_semantic(q, limit=limit)
+        else:
+            results = engine.search_hybrid(q, limit=limit)
+        return JSONResponse({
+            'results': results,
+            'query': q,
+            'mode': mode,
+            'count': len(results),
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e), 'results': []}, status_code=500)
+
+
+@app.get('/api/timeline')
+def api_timeline(date: str = '', page: int = 1, per_page: int = 50):
+    """
+    Screenshot timeline for visual day scrubbing.
+    Returns paginated screen frames with metadata for the given date.
+    """
+    try:
+        from database.models import ScreenFrame
+        session = SessionLocal()
+        target_date = date or datetime.now().strftime('%Y-%m-%d')
+
+        query = (session.query(ScreenFrame)
+                 .filter(ScreenFrame.session_date == target_date,
+                         ScreenFrame.is_duplicate == False)
+                 .order_by(ScreenFrame.timestamp.asc()))
+
+        total = query.count()
+        offset = (page - 1) * per_page
+        frames = query.offset(offset).limit(per_page).all()
+
+        results = []
+        for f in frames:
+            results.append({
+                'id': f.id,
+                'timestamp': f.timestamp.isoformat() if f.timestamp else None,
+                'time': f.timestamp.strftime('%H:%M:%S') if f.timestamp else '',
+                'screenshot_path': f.screenshot_path,
+                'process_name': f.process_name,
+                'window_title': f.window_title,
+                'category': f.detected_category,
+                'summary': f.analysis_summary,
+                'ocr_text_preview': (f.ocr_text or '')[:200],
+                'file_size_kb': round((f.file_size_bytes or 0) / 1024, 1),
+                'privacy_scrubbed': f.privacy_scrubbed,
+            })
+
+        session.close()
+        return JSONResponse({
+            'date': target_date,
+            'frames': results,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (total + per_page - 1) // per_page,
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/timeline/dates')
+def api_timeline_dates():
+    """Return list of dates that have captured screen frames."""
+    try:
+        from database.models import ScreenFrame
+        from sqlalchemy import func, distinct
+        session = SessionLocal()
+        dates = (session.query(distinct(ScreenFrame.session_date))
+                 .order_by(ScreenFrame.session_date.desc())
+                 .limit(90).all())
+        session.close()
+        return JSONResponse({
+            'dates': [d[0] for d in dates if d[0]],
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e), 'dates': []}, status_code=500)
+
+
+@app.get('/api/frame/{frame_id}')
+def api_frame_detail(frame_id: int):
+    """Get full detail of a specific screen frame."""
+    try:
+        from database.models import ScreenFrame
+        session = SessionLocal()
+        frame = session.query(ScreenFrame).filter(ScreenFrame.id == frame_id).first()
+        if not frame:
+            session.close()
+            return JSONResponse({'error': 'Frame not found'}, status_code=404)
+
+        result = {
+            'id': frame.id,
+            'timestamp': frame.timestamp.isoformat() if frame.timestamp else None,
+            'screenshot_path': frame.screenshot_path,
+            'process_name': frame.process_name,
+            'window_title': frame.window_title,
+            'category': frame.detected_category,
+            'summary': frame.analysis_summary,
+            'ocr_text': frame.ocr_text,
+            'ocr_text_length': frame.ocr_text_length,
+            'phash': frame.phash,
+            'file_size_bytes': frame.file_size_bytes,
+            'privacy_scrubbed': frame.privacy_scrubbed,
+            'has_embedding': frame.embedding_json is not None,
+        }
+        session.close()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/screenshot/{frame_id}')
+def api_serve_screenshot(frame_id: int):
+    """Serve a screenshot image file for a given frame ID."""
+    try:
+        from database.models import ScreenFrame
+        session = SessionLocal()
+        frame = session.query(ScreenFrame).filter(ScreenFrame.id == frame_id).first()
+        session.close()
+        if not frame or not frame.screenshot_path:
+            return JSONResponse({'error': 'Screenshot not found'}, status_code=404)
+        if not os.path.exists(frame.screenshot_path):
+            return JSONResponse({'error': 'File missing from disk'}, status_code=404)
+        media_type = 'image/webp' if frame.screenshot_path.endswith('.webp') else 'image/jpeg'
+        return FileResponse(frame.screenshot_path, media_type=media_type)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/privacy/rules')
+def api_privacy_rules():
+    """Get current privacy exclusion rules."""
+    try:
+        from config.privacy_rules import PrivacyRules
+        rules = PrivacyRules()
+        return JSONResponse(rules.get_rules())
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.post('/api/privacy/rules')
+async def api_update_privacy_rules(request: Request):
+    """Update privacy exclusion rules."""
+    try:
+        from config.privacy_rules import PrivacyRules
+        data = await request.json()
+        rules = PrivacyRules()
+        if 'add_process' in data:
+            rules.add_process_rule(data['add_process'])
+        if 'add_pattern' in data:
+            rules.add_title_pattern(data['add_pattern'])
+        rules.save()
+        return JSONResponse({'status': 'updated', 'rules': rules.get_rules()})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/storage/stats')
+def api_storage_stats():
+    """Get storage statistics: total frames, disk usage, dedup rate."""
+    try:
+        from database.models import ScreenFrame
+        from sqlalchemy import func
+        session = SessionLocal()
+
+        total_frames = session.query(func.count(ScreenFrame.id)).scalar() or 0
+        total_bytes = session.query(func.sum(ScreenFrame.file_size_bytes)).scalar() or 0
+        deduped_frames = session.query(func.count(ScreenFrame.id)).filter(
+            ScreenFrame.is_duplicate == True
+        ).scalar() or 0
+        frames_with_embedding = session.query(func.count(ScreenFrame.id)).filter(
+            ScreenFrame.embedding_json.isnot(None)
+        ).scalar() or 0
+
+        # Category breakdown
+        categories = (session.query(
+            ScreenFrame.detected_category,
+            func.count(ScreenFrame.id)
+        ).group_by(ScreenFrame.detected_category).all())
+
+        session.close()
+
+        return JSONResponse({
+            'total_frames': total_frames,
+            'total_size_mb': round(total_bytes / (1024 * 1024), 2),
+            'deduped_frames': deduped_frames,
+            'dedup_rate_pct': round(deduped_frames / max(1, total_frames + deduped_frames) * 100, 1),
+            'frames_with_embeddings': frames_with_embedding,
+            'embedding_coverage_pct': round(frames_with_embedding / max(1, total_frames) * 100, 1),
+            'categories': {c[0] or 'unknown': c[1] for c in categories},
+        })
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/search/rebuild_index')
+def api_rebuild_index():
+    """Rebuild FTS5 search index from existing data."""
+    try:
+        from ocr.search_engine import HybridSearchEngine
+        engine = HybridSearchEngine()
+        engine.rebuild_fts_index()
+        return JSONResponse({'status': 'FTS5 index rebuilt successfully'})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.get('/api/timeline')
+def api_timeline(limit: int = 50, offset: int = 0):
+    """Return paginated frames with WebP URLs and OmniParser JSON data."""
+    try:
+        from database.models import ScreenFrame
+        session = SessionLocal()
+        
+        frames = session.query(ScreenFrame).order_by(ScreenFrame.timestamp.desc()).offset(offset).limit(limit).all()
+        result = []
+        for f in frames:
+            result.append({
+                'id': f.id,
+                'timestamp': f.timestamp.isoformat() if f.timestamp else None,
+                'process_name': f.process_name,
+                'window_title': f.window_title,
+                'ocr_text': f.ocr_text,
+                'analysis_summary': f.analysis_summary,
+                'detected_category': f.detected_category,
+                'is_duplicate': f.is_duplicate,
+                'omniparser_json': json.loads(f.omniparser_json) if f.omniparser_json else None,
+            })
+            
+        session.close()
+        return JSONResponse({'frames': result})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.get('/api/search')
+def api_search(q: str = '', limit: int = 20):
+    """Hybrid semantic + keyword search using sqlite-vec and FTS5 (RRF)."""
+    try:
+        from ocr.search_engine import search_engine
+        results = search_engine.hybrid_search(query=q, limit=limit)
+        return JSONResponse({'results': results})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
