@@ -1202,7 +1202,7 @@ async function refreshCategories() {
 
 async function refreshTimeline() {
   try {
-    const data = await fetch('/api/timeline').then(r => r.json());
+    const data = await fetch('/api/timeline/chart').then(r => r.json());
     const hours = Array.from({length:24},(_,i) => i);
     const categories = [...new Set(Object.values(data).flatMap(v => Object.keys(v)))];
     const datasets = categories.map(cat => ({
@@ -2155,6 +2155,31 @@ function showToast(msg, type='') {
 }
 // ─── Visual Timeline (Microsoft Recall Clone) ─────────────────────────────────
 let timelineFrames = [];
+
+async function searchMemory() {
+  const input = document.getElementById('memory-search-input').value;
+  if (!input) return;
+  const resDiv = document.getElementById('memory-results');
+  resDiv.innerHTML = '<div style="text-align:center;padding:40px;">Searching...</div>';
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(input)}`).then(r => r.json());
+    if (res.results && res.results.length > 0) {
+      resDiv.innerHTML = res.results.map(r => `
+        <div class="activity-item" style="cursor:pointer" onclick="window.open('/api/screenshot/${r.id}')">
+          <div style="flex:1">
+            <strong>${r.window_title || r.process_name}</strong> <span style="color:var(--muted)">- ${new Date(r.timestamp).toLocaleString()}</span>
+            <div style="font-size:0.85rem;color:var(--muted);margin-top:4px;">${r.ocr_text ? r.ocr_text.substring(0, 150) + '...' : ''}</div>
+          </div>
+          ${r.screenshot_path ? `<img src="/api/screenshot/${r.id}" style="width:120px;height:70px;object-fit:cover;border-radius:4px;">` : ''}
+        </div>
+      `).join('');
+    } else {
+      resDiv.innerHTML = '<div style="text-align:center;padding:40px;">No matches found in visual memory.</div>';
+    }
+  } catch(e) {
+    resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:red;">Search failed.</div>';
+  }
+}
 
 async function loadTimeline() {
   try {

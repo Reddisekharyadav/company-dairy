@@ -192,7 +192,7 @@ class ScreenCaptureWorker:
                         omniparser_json_str = None
                         try:
                             if analyze_ui_frame:
-                                omniparser_json_str = analyze_ui_frame(img)
+                                omniparser_json_str = analyze_ui_frame(img, ocr_data=ocr_data if 'ocr_data' in locals() else None)
                         except Exception as vision_e:
                             log.debug("Vision AI failed: %s", vision_e)
 

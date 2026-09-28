@@ -1,118 +1,81 @@
 """
 Vision AI module for WorkSense AI (Microsoft Recall Clone)
-Integrates Microsoft Florence-2-base and OmniParser pipelines for deep UI understanding.
-Models are loaded lazily to minimize startup overhead and prevent blocking the main thread.
+Integrates OpenRouter API and OCR fallback for deep UI understanding.
 """
 import logging
 import json
-import threading
+import base64
+import requests
+from io import BytesIO
 from typing import Optional, Dict, Any
+from config.settings import settings
 
 log = logging.getLogger('vision_ai')
 
-class VisionAIEngine:
-    def __init__(self):
-        self._florence_model = None
-        self._florence_processor = None
-        self._lock = threading.Lock()
-        self._is_loaded = False
-        
-    def _lazy_load(self):
-        if self._is_loaded:
-            return
-            
-        with self._lock:
-            if self._is_loaded:
-                return
-                
-            try:
-                log.info("Loading Vision AI models (Florence-2 & OmniParser)...")
-                from transformers import AutoProcessor, AutoModelForCausalLM
-                import torch
-                
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
-                florence_model_id = "microsoft/Florence-2-base"
-                self._florence_processor = AutoProcessor.from_pretrained(florence_model_id, trust_remote_code=True)
-                self._florence_model = AutoModelForCausalLM.from_pretrained(
-                    florence_model_id, 
-                    trust_remote_code=True
-                ).to(self.device).eval()
-                
-                self._is_loaded = True
-                log.info("Vision AI models loaded successfully on %s.", self.device)
-            except Exception as e:
-                log.error("Failed to load Vision AI models: %s", e)
-                raise
-                
-    def run_florence_task(self, image, task_prompt: str) -> Any:
-        self._lazy_load()
-        if not self._florence_model:
-            return None
-            
-        try:
-            inputs = self._florence_processor(text=task_prompt, images=image, return_tensors="pt").to(self.device)
-            generated_ids = self._florence_model.generate(
-                input_ids=inputs["input_ids"],
-                pixel_values=inputs["pixel_values"],
-                max_new_tokens=1024,
-                num_beams=3
-            )
-            generated_text = self._florence_processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-            parsed_answer = self._florence_processor.post_process_generation(generated_text, task=task_prompt, image_size=image.size)
-            return parsed_answer.get(task_prompt, parsed_answer)
-        except Exception as e:
-            log.warning("Florence-2 task '%s' failed: %s", task_prompt, e)
-            return None
-
-    def get_ui_understanding(self, image) -> Dict[str, Any]:
-        self._lazy_load()
-        
-        ocr_regions = self.run_florence_task(image, "<OCR_WITH_REGION>")
-        dense_captions = self.run_florence_task(image, "<DENSE_REGION_CAPTION>")
-        
+def analyze_ui_frame(image, ocr_data: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    try:
+        # 1. Base elements from OCR (fallback OmniParser format)
         elements = []
         element_id = 0
-        
-        if isinstance(ocr_regions, dict) and "quad_boxes" in ocr_regions:
-            labels = ocr_regions.get("labels", [])
-            boxes = ocr_regions.get("quad_boxes", [])
-            for idx, box in enumerate(boxes):
-                elements.append({
-                    "id": element_id,
-                    "type": "text",
-                    "interactivity": False,
-                    "label": labels[idx] if idx < len(labels) else "",
-                    "bbox": box
-                })
-                element_id += 1
-                
-        if isinstance(dense_captions, dict) and "bboxes" in dense_captions:
-            labels = dense_captions.get("labels", [])
-            boxes = dense_captions.get("bboxes", [])
-            for idx, box in enumerate(boxes):
-                label = labels[idx] if idx < len(labels) else ""
-                is_interactive = any(kw in label.lower() for kw in ["button", "icon", "link", "input", "menu", "logo"])
-                elements.append({
-                    "id": element_id,
-                    "type": "ui_element",
-                    "interactivity": is_interactive,
-                    "label": label,
-                    "bbox": box
-                })
-                element_id += 1
-                
-        return {
+        if ocr_data and 'lines' in ocr_data:
+            for line in ocr_data['lines']:
+                if 'words' in line:
+                    for word in line['words']:
+                        bbox = word.get('bbox', [0,0,0,0])
+                        # Map win_ocr bbox [x, y, w, h] to omniparser [x, y, x2, y2]
+                        # Actually the frontend parses [x,y,w,h] if len is 4, or x,y,x+w,y+h
+                        # Frontend logic: x=bbox[0], y=bbox[1], w=bbox[2]-bbox[0], h=bbox[3]-bbox[1]
+                        # So we need to provide [x, y, x+w, y+h]
+                        elements.append({
+                            "id": element_id,
+                            "type": "text",
+                            "interactivity": False,
+                            "label": word.get("text", ""),
+                            "bbox": [bbox[0], bbox[1], bbox[0]+bbox[2], bbox[1]+bbox[3]]
+                        })
+                        element_id += 1
+
+        result = {
             "version": "omniparser_v1",
             "image_size": image.size,
             "elements": elements
         }
 
-vision_engine = VisionAIEngine()
+        # 2. Try OpenRouter for dense caption / summary if key exists
+        if getattr(settings, 'ai_api_key', None):
+            try:
+                buffered = BytesIO()
+                image.save(buffered, format="JPEG", quality=60)
+                img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                
+                headers = {
+                    "Authorization": f"Bearer {settings.ai_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload = {
+                    "model": "google/gemini-pro-vision", # Using a generic vision model available on OpenRouter
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Briefly describe what the user is doing on this screen in one sentence."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
+                            ]
+                        }
+                    ],
+                    "max_tokens": 50
+                }
+                
+                # Non-blocking request ideally, but we are in a worker thread anyway
+                response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=5)
+                if response.status_code == 200:
+                    ai_text = response.json()['choices'][0]['message']['content']
+                    result["analysis_summary"] = ai_text.strip()
+            except Exception as api_e:
+                log.warning(f"OpenRouter API failed: {api_e}")
 
-def analyze_ui_frame(image) -> Optional[str]:
-    try:
-        data = vision_engine.get_ui_understanding(image)
-        return json.dumps(data)
+        return json.dumps(result)
     except Exception as e:
         log.error("Failed to analyze UI frame: %s", e)
         return None

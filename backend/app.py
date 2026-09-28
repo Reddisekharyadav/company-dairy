@@ -300,7 +300,7 @@ def api_websites(period: str = 'daily'):
         session.close()
 
 
-@app.get('/api/timeline')
+@app.get('/api/timeline/chart')
 def api_timeline(period: str = 'daily'):
     """Return activity bucketed by hour for chart display."""
     session = SessionLocal()
@@ -1030,7 +1030,7 @@ def api_files_detailed(days: int = 7, limit: int = 30):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@app.get('/api/search')
+# @app.get('/api/search')
 def api_search(q: str = '', mode: str = 'hybrid', limit: int = 20):
     """
     Hybrid search across all captured screen content.
@@ -1057,7 +1057,7 @@ def api_search(q: str = '', mode: str = 'hybrid', limit: int = 20):
         return JSONResponse({'error': str(e), 'results': []}, status_code=500)
 
 
-@app.get('/api/timeline')
+# @app.get('/api/timeline')
 def api_timeline(date: str = '', page: int = 1, per_page: int = 50):
     """
     Screenshot timeline for visual day scrubbing.
