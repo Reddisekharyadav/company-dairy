@@ -485,21 +485,57 @@
 <!-- TIMELINE PANEL                                                             -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <div class="panel" id="panel-timeline">
-  <div class="card" style="margin-bottom:20px; overflow: hidden; display: flex; flex-direction: column;">
-    <div class="card-title"><span class="icon">⏪</span> Visual Timeline (Microsoft Recall Clone)</div>
-    
-    <div id="timeline-stage" style="position: relative; width: 100%; height: 60vh; background: #000; border-radius: 8px; margin-bottom: 20px;">
-        <img id="timeline-image" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" src="" />
-        <svg id="timeline-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto;" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1920 1080"></svg>
-        <div id="timeline-tooltip" style="position:absolute; display:none; background: rgba(0,0,0,0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; z-index: 10; pointer-events: none; border: 1px solid var(--accent);">Tooltip</div>
+  <!-- Timeline Header with stats + controls -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div class="card-title" style="margin-bottom:0"><span class="icon">⏪</span> Visual Timeline</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="timeline-frame-counter" style="font-size:.78rem;color:var(--muted);font-family:'JetBrains Mono',monospace;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="reanalyzeFrames()" title="Re-analyze all frames with AI">🔄 Re-analyze</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadTimeline()">↻ Reload</button>
+      </div>
     </div>
-    
-    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-      <div id="timeline-metadata" style="color: var(--muted); font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">Loading timeline...</div>
-      <button class="btn btn-secondary btn-sm" onclick="loadTimeline()">↻ Reload Timeline</button>
+  </div>
+
+  <!-- Main Viewer: Screenshot + Metadata + Activity Description -->
+  <div class="card" style="margin-bottom:16px;overflow:hidden;">
+    <div id="timeline-stage" style="position:relative;width:100%;height:55vh;background:#0a0a0f;border-radius:8px;margin-bottom:16px;">
+      <img id="timeline-image" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" src="" />
+      <svg id="timeline-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:auto;" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1920 1080"></svg>
+      <div id="timeline-tooltip" style="position:absolute;display:none;background:rgba(0,0,0,0.95);color:#fff;padding:6px 12px;border-radius:6px;font-size:.78rem;z-index:10;pointer-events:none;border:1px solid var(--accent);max-width:300px;"></div>
+      <!-- Category badge overlay -->
+      <div id="timeline-category-badge" style="position:absolute;top:12px;left:12px;padding:4px 14px;border-radius:20px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;backdrop-filter:blur(8px);display:none;"></div>
     </div>
-    
-    <input type="range" id="timeline-slider" min="0" max="0" value="0" style="width: 100%; cursor: pointer;" oninput="onScrubTimeline()">
+
+    <!-- Activity Description Card -->
+    <div id="timeline-activity-card" style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 18px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span id="tl-activity-icon" style="font-size:1.4rem;">🖥️</span>
+        <div style="flex:1;">
+          <div id="tl-activity-summary" style="font-size:.95rem;font-weight:600;color:var(--text);"></div>
+          <div id="tl-activity-time" style="font-size:.75rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;"></div>
+        </div>
+        <span id="tl-activity-category" style="font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:600;"></span>
+      </div>
+      <div id="tl-activity-app" style="font-size:.8rem;color:var(--muted2);margin-bottom:6px;display:none;"></div>
+      <div id="tl-ocr-preview" style="font-size:.78rem;color:var(--muted);line-height:1.5;max-height:80px;overflow-y:auto;border-top:1px solid var(--border);padding-top:8px;display:none;font-family:'JetBrains Mono',monospace;"></div>
+    </div>
+
+    <!-- Scrubber Slider -->
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:.72rem;color:var(--muted);white-space:nowrap;" id="tl-slider-label">Frame 0/0</span>
+      <input type="range" id="timeline-slider" min="0" max="0" value="0" style="flex:1;cursor:pointer;" oninput="onScrubTimeline()">
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-ghost btn-sm" onclick="stepTimeline(-1)" title="Previous frame">◀</button>
+        <button class="btn btn-ghost btn-sm" onclick="stepTimeline(1)" title="Next frame">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline Activity Strip: mini thumbnails of recent activity -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title"><span class="icon">📋</span> Activity Log</div>
+    <div id="timeline-activity-strip" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -2156,45 +2192,95 @@ function showToast(msg, type='') {
 // ─── Visual Timeline (Microsoft Recall Clone) ─────────────────────────────────
 let timelineFrames = [];
 
+const CATEGORY_CONFIG = {
+  coding:        { icon: '💻', color: '#3b82f6', bg: 'rgba(59,130,246,.15)' },
+  browsing:      { icon: '🌐', color: '#8b5cf6', bg: 'rgba(139,92,246,.15)' },
+  meeting:       { icon: '📹', color: '#f59e0b', bg: 'rgba(245,158,11,.15)' },
+  terminal:      { icon: '⬛', color: '#10b981', bg: 'rgba(16,185,129,.15)' },
+  document:      { icon: '📄', color: '#ec4899', bg: 'rgba(236,72,153,.15)' },
+  communication: { icon: '💬', color: '#06b6d4', bg: 'rgba(6,182,212,.15)' },
+  media:         { icon: '🎬', color: '#f97316', bg: 'rgba(249,115,22,.15)' },
+  design:        { icon: '🎨', color: '#a855f7', bg: 'rgba(168,85,247,.15)' },
+  unknown:       { icon: '🖥️', color: '#64748b', bg: 'rgba(100,116,139,.15)' },
+};
+
 async function searchMemory() {
   const input = document.getElementById('memory-search-input').value;
   if (!input) return;
   const resDiv = document.getElementById('memory-results');
-  resDiv.innerHTML = '<div style="text-align:center;padding:40px;">Searching...</div>';
+  resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">🔍 Searching your visual memory...</div>';
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(input)}`).then(r => r.json());
     if (res.results && res.results.length > 0) {
-      resDiv.innerHTML = res.results.map(r => `
-        <div class="activity-item" style="cursor:pointer" onclick="window.open('/api/screenshot/${r.id}')">
-          <div style="flex:1">
-            <strong>${r.window_title || r.process_name}</strong> <span style="color:var(--muted)">- ${new Date(r.timestamp).toLocaleString()}</span>
-            <div style="font-size:0.85rem;color:var(--muted);margin-top:4px;">${r.ocr_text ? r.ocr_text.substring(0, 150) + '...' : ''}</div>
+      resDiv.innerHTML = res.results.map(r => {
+        const cat = CATEGORY_CONFIG[r.detected_category] || CATEGORY_CONFIG.unknown;
+        const timeStr = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
+        const summary = r.analysis_summary || r.window_title || r.process_name || '';
+        const ocrSnippet = r.ocr_text ? r.ocr_text.substring(0, 200) : '';
+        return `
+        <div class="activity-item" style="cursor:pointer;gap:12px;" onclick="window.open('/api/screenshot/${r.id}')">
+          <div style="width:140px;height:85px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#111;">
+            ${r.screenshot_path ? '<img src="/api/screenshot/' + r.id + '" style="width:100%;height:100%;object-fit:cover;">' : '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">' + cat.icon + '</div>'}
           </div>
-          ${r.screenshot_path ? `<img src="/api/screenshot/${r.id}" style="width:120px;height:70px;object-fit:cover;border-radius:4px;">` : ''}
-        </div>
-      `).join('');
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:.68rem;padding:2px 8px;border-radius:20px;font-weight:600;background:${cat.bg};color:${cat.color};">${(r.detected_category||'unknown').toUpperCase()}</span>
+              <span style="font-size:.72rem;color:var(--muted);font-family:'JetBrains Mono',monospace;">${timeStr}</span>
+            </div>
+            <div style="font-weight:600;font-size:.88rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${summary}</div>
+            <div style="font-size:.76rem;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${ocrSnippet}</div>
+          </div>
+        </div>`;
+      }).join('');
     } else {
-      resDiv.innerHTML = '<div style="text-align:center;padding:40px;">No matches found in visual memory.</div>';
+      resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">No matches found in visual memory.</div>';
     }
   } catch(e) {
-    resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:red;">Search failed.</div>';
+    resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#f87171;">Search failed. Make sure the server is running.</div>';
+  }
+}
+
+async function reanalyzeFrames() {
+  try {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Analyzing...';
+    const res = await fetch('/api/timeline/reanalyze').then(r => r.json());
+    btn.textContent = `✅ ${res.frames_updated || 0} frames updated`;
+    setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Re-analyze'; loadTimeline(); }, 2000);
+  } catch(e) {
+    console.error("Reanalyze failed:", e);
   }
 }
 
 async function loadTimeline() {
   try {
-    const res = await fetch('/api/timeline?limit=100').then(r => r.json());
+    const res = await fetch('/api/timeline?limit=200').then(r => r.json());
     timelineFrames = res.frames || [];
+    const counterEl = document.getElementById('timeline-frame-counter');
+    if (counterEl) counterEl.textContent = `${timelineFrames.length} frames loaded`;
+    
     if (timelineFrames.length > 0) {
       const slider = document.getElementById('timeline-slider');
       slider.max = timelineFrames.length - 1;
-      slider.value = timelineFrames.length - 1; // Start at latest
+      slider.value = 0; // Start at newest (index 0 = most recent)
       onScrubTimeline();
+      renderActivityStrip();
     } else {
-      document.getElementById('timeline-metadata').textContent = 'No frames available yet.';
+      const card = document.getElementById('timeline-activity-card');
+      if (card) card.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">No frames captured yet. Enable screen capture to start building your timeline.</div>';
     }
   } catch (e) {
     console.error("Timeline error:", e);
+  }
+}
+
+function stepTimeline(dir) {
+  const slider = document.getElementById('timeline-slider');
+  const val = parseInt(slider.value) + dir;
+  if (val >= 0 && val <= parseInt(slider.max)) {
+    slider.value = val;
+    onScrubTimeline();
   }
 }
 
@@ -2205,32 +2291,65 @@ function onScrubTimeline() {
   const frame = timelineFrames[index];
   if (!frame) return;
   
-  // 1. Update image (Reverse chronological or chronological - assume index 0 is oldest or newest, 
-  // API returns order_by desc, so index 0 is newest, index N is oldest)
-  // Let's reverse the array if we want left to right = oldest to newest
-  // Just use /api/screenshot/id
+  const cat = CATEGORY_CONFIG[frame.detected_category] || CATEGORY_CONFIG.unknown;
+  
+  // 1. Update screenshot image
   document.getElementById('timeline-image').src = `/api/screenshot/${frame.id}`;
   
-  // 2. Update metadata text
-  const timeStr = frame.timestamp ? new Date(frame.timestamp).toLocaleString() : '';
-  let metaHtml = `<strong>${timeStr}</strong> | ${frame.process_name} - ${frame.window_title}`;
-  if (frame.is_duplicate) metaHtml += ` <span style="color:var(--yellow)">(Duplicate)</span>`;
-  document.getElementById('timeline-metadata').innerHTML = metaHtml;
+  // 2. Update slider label
+  const labelEl = document.getElementById('tl-slider-label');
+  if (labelEl) labelEl.textContent = `Frame ${index + 1}/${timelineFrames.length}`;
   
-  // 3. Draw OmniParser bounding boxes on SVG
+  // 3. Update activity card
+  const timeStr = frame.timestamp ? new Date(frame.timestamp).toLocaleString() : '';
+  const summary = frame.analysis_summary || frame.window_title || frame.process_name || 'Screen capture';
+  
+  document.getElementById('tl-activity-icon').textContent = cat.icon;
+  document.getElementById('tl-activity-summary').textContent = summary;
+  document.getElementById('tl-activity-time').textContent = timeStr;
+  
+  const catBadge = document.getElementById('tl-activity-category');
+  catBadge.textContent = (frame.detected_category || 'unknown').toUpperCase();
+  catBadge.style.background = cat.bg;
+  catBadge.style.color = cat.color;
+  
+  // App info
+  const appEl = document.getElementById('tl-activity-app');
+  if (frame.process_name || frame.window_title) {
+    appEl.style.display = 'block';
+    appEl.innerHTML = `<strong>${frame.process_name || ''}</strong>${frame.window_title ? ' — ' + frame.window_title.substring(0, 100) : ''}`;
+  } else {
+    appEl.style.display = 'none';
+  }
+  
+  // OCR preview
+  const ocrEl = document.getElementById('tl-ocr-preview');
+  if (frame.ocr_preview && frame.ocr_preview.length > 10) {
+    ocrEl.style.display = 'block';
+    ocrEl.textContent = frame.ocr_preview;
+  } else {
+    ocrEl.style.display = 'none';
+  }
+  
+  // Category badge overlay on image
+  const overlayBadge = document.getElementById('timeline-category-badge');
+  overlayBadge.style.display = 'block';
+  overlayBadge.textContent = cat.icon + ' ' + (frame.detected_category || 'unknown');
+  overlayBadge.style.background = cat.bg;
+  overlayBadge.style.color = cat.color;
+  overlayBadge.style.border = `1px solid ${cat.color}40`;
+  
+  // 4. Draw OmniParser bounding boxes on SVG
   const svg = document.getElementById('timeline-svg');
-  svg.innerHTML = ''; // clear previous
+  svg.innerHTML = '';
   
   if (frame.omniparser_json && frame.omniparser_json.elements) {
-    // We assume the original image size is known or we map it to 1920x1080 viewBox
-    // For now, draw rects
     frame.omniparser_json.elements.forEach(el => {
       let bbox = el.bbox;
       if (!bbox || bbox.length < 4) return;
       
       let x, y, w, h;
       if (bbox.length === 8) {
-          // Quad: x1,y1... x4,y4 -> map to simple rect
           x = Math.min(bbox[0], bbox[2], bbox[4], bbox[6]);
           y = Math.min(bbox[1], bbox[3], bbox[5], bbox[7]);
           const maxX = Math.max(bbox[0], bbox[2], bbox[4], bbox[6]);
@@ -2238,12 +2357,7 @@ function onScrubTimeline() {
           w = maxX - x;
           h = maxY - y;
       } else {
-          // Standard bbox: x, y, x2, y2 (or x, y, w, h depending on output)
-          // Florence dense caption usually gives x1, y1, x2, y2
-          x = bbox[0];
-          y = bbox[1];
-          w = bbox[2] - bbox[0];
-          h = bbox[3] - bbox[1];
+          x = bbox[0]; y = bbox[1]; w = bbox[2] - bbox[0]; h = bbox[3] - bbox[1];
       }
       
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -2252,18 +2366,18 @@ function onScrubTimeline() {
       rect.setAttribute('width', w);
       rect.setAttribute('height', h);
       rect.setAttribute('fill', 'transparent');
-      rect.setAttribute('stroke', el.interactivity ? 'var(--accent)' : 'rgba(255,255,255,0.4)');
-      rect.setAttribute('stroke-width', '2');
+      rect.setAttribute('stroke', el.interactivity ? 'var(--accent)' : 'rgba(255,255,255,0.25)');
+      rect.setAttribute('stroke-width', '1.5');
       rect.style.cursor = el.interactivity ? 'pointer' : 'default';
       
-      // Hover Tooltip
       rect.addEventListener('mouseenter', (e) => {
         const tooltip = document.getElementById('timeline-tooltip');
         tooltip.style.display = 'block';
-        tooltip.textContent = `[${el.type}] ${el.label}`;
+        tooltip.textContent = el.label || el.type;
         tooltip.style.left = (e.clientX + 10) + 'px';
         tooltip.style.top = (e.clientY + 10) + 'px';
-        rect.setAttribute('fill', 'rgba(59,130,246,0.2)');
+        rect.setAttribute('fill', 'rgba(59,130,246,0.15)');
+        rect.setAttribute('stroke', 'var(--accent)');
       });
       rect.addEventListener('mousemove', (e) => {
         const tooltip = document.getElementById('timeline-tooltip');
@@ -2273,11 +2387,37 @@ function onScrubTimeline() {
       rect.addEventListener('mouseleave', () => {
         document.getElementById('timeline-tooltip').style.display = 'none';
         rect.setAttribute('fill', 'transparent');
+        rect.setAttribute('stroke', el.interactivity ? 'var(--accent)' : 'rgba(255,255,255,0.25)');
       });
       
       svg.appendChild(rect);
     });
   }
+  
+  // Highlight the active item in the activity strip
+  document.querySelectorAll('.tl-strip-item').forEach((el, i) => {
+    el.style.borderColor = i === index ? 'var(--accent)' : 'var(--border)';
+    el.style.background = i === index ? 'var(--surface2)' : 'transparent';
+  });
+}
+
+function renderActivityStrip() {
+  const strip = document.getElementById('timeline-activity-strip');
+  if (!strip) return;
+  
+  strip.innerHTML = timelineFrames.map((f, i) => {
+    const cat = CATEGORY_CONFIG[f.detected_category] || CATEGORY_CONFIG.unknown;
+    const timeStr = f.timestamp ? new Date(f.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+    const summary = f.analysis_summary || f.window_title || f.process_name || 'Screen capture';
+    return `<div class="tl-strip-item" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .15s;" onclick="document.getElementById('timeline-slider').value=${i};onScrubTimeline();">
+      <span style="font-size:1.1rem;">${cat.icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${summary}</div>
+        <div style="font-size:.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;">${timeStr} · ${(f.detected_category||'unknown')} · ${f.ocr_text_length||0} chars OCR</div>
+      </div>
+      <span style="font-size:.62rem;padding:2px 6px;border-radius:12px;background:${cat.bg};color:${cat.color};font-weight:600;">${f.file_size_kb||0}KB</span>
+    </div>`;
+  }).join('');
 }
 
 // Ensure timeline loads when tab is switched to it

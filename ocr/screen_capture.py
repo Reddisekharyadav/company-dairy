@@ -124,6 +124,13 @@ class ScreenCaptureWorker:
         except Exception:
             search_engine = None
 
+        # Screen content analyzer — generates human-readable activity summaries
+        try:
+            from ocr.screen_analyzer import analyze_screen, detect_category
+        except Exception:
+            analyze_screen = None
+            detect_category = None
+
         # Fallback OCR using pytesseract
         try:
             from ocr.ocr import extract_text as tesseract_extract
@@ -196,6 +203,17 @@ class ScreenCaptureWorker:
                         except Exception as vision_e:
                             log.debug("Vision AI failed: %s", vision_e)
 
+                        # ── Activity Analysis (screen_analyzer) ──
+                        analysis_summary = None
+                        detected_category = None
+                        try:
+                            if analyze_screen:
+                                analysis_summary = analyze_screen(ocr_text, proc, title)
+                            if detect_category:
+                                detected_category = detect_category(proc, title, analysis_summary)
+                        except Exception as ana_e:
+                            log.debug("Screen analysis failed: %s", ana_e)
+
                         # ── Embedding Generation (optional) ──
                         embedding_json_str = None
                         try:
@@ -219,6 +237,8 @@ class ScreenCaptureWorker:
                             is_duplicate=is_duplicate,
                             ocr_text=ocr_text,
                             ocr_text_length=len(ocr_text),
+                            analysis_summary=analysis_summary,
+                            detected_category=detected_category,
                             omniparser_json=omniparser_json_str,
                             embedding_json=embedding_json_str,
                         )
@@ -229,7 +249,7 @@ class ScreenCaptureWorker:
                         try:
                             session.execute(
                                 sa_text("INSERT INTO screen_frames_fts(rowid, ocr_text, window_title, analysis_summary) VALUES (:id, :txt, :title, :summary)"),
-                                {"id": frame.id, "txt": ocr_text, "title": title, "summary": ""}
+                                {"id": frame.id, "txt": ocr_text, "title": title, "summary": analysis_summary or ""}
                             )
                             session.commit()
                         except Exception as fts_e:

@@ -294,3 +294,65 @@ def analyze_screen(ocr_text: str, proc_name: str, window_title: str) -> Optional
     if keywords:
         return f"Working on: {', '.join(keywords[:4])}"
     return None
+
+
+def detect_category(proc_name: str, window_title: str, analysis_summary: str = None) -> str:
+    """
+    Classify the current activity into a high-level category.
+    Returns one of: coding, browsing, meeting, terminal, document,
+    communication, media, design, or unknown.
+    """
+    proc_lower = (proc_name or '').lower()
+    title_lower = (window_title or '').lower()
+    summary_lower = (analysis_summary or '').lower()
+    combined = f"{proc_lower} {title_lower} {summary_lower}"
+
+    # Meeting
+    meeting_kw = ['teams', 'zoom', 'meet', 'webex', 'slack huddle', 'discord voice',
+                  'meeting', 'call', 'webinar']
+    if any(k in combined for k in meeting_kw):
+        return 'meeting'
+
+    # IDEs / Coding
+    ide_kw = ['code.exe', 'code', 'devenv', 'pycharm', 'intellij', 'webstorm',
+              'cursor', 'sublime_text', 'notepad++', 'vim', 'nvim', 'emacs',
+              'android studio', 'xcode']
+    if any(k in proc_lower for k in ide_kw) or 'coding' in summary_lower:
+        return 'coding'
+
+    # Terminal
+    term_kw = ['cmd.exe', 'powershell', 'pwsh', 'windowsterminal', 'terminal',
+               'iterm', 'konsole', 'alacritty', 'wezterm', 'mintty', 'bash', 'zsh']
+    if any(k in proc_lower for k in term_kw) or 'terminal' in summary_lower:
+        return 'terminal'
+
+    # Document / Office
+    doc_kw = ['winword', 'excel', 'powerpnt', 'onenote', 'libreoffice', 'soffice',
+              'acrord32', 'acrobat', '.pdf', '.docx', '.xlsx', '.pptx']
+    if any(k in combined for k in doc_kw) or 'document' in summary_lower:
+        return 'document'
+
+    # Design tools
+    design_kw = ['figma', 'sketch', 'photoshop', 'illustrator', 'inkscape',
+                 'gimp', 'canva', 'blender', 'after effects', 'premiere']
+    if any(k in combined for k in design_kw):
+        return 'design'
+
+    # Communication
+    comm_kw = ['slack', 'discord', 'telegram', 'whatsapp', 'signal', 'outlook',
+               'thunderbird', 'gmail', 'mail', 'messages']
+    if any(k in combined for k in comm_kw) and 'meeting' not in combined:
+        return 'communication'
+
+    # Media
+    media_kw = ['youtube', 'netflix', 'spotify', 'vlc', 'media player',
+                'twitch', 'prime video', 'disney']
+    if any(k in combined for k in media_kw):
+        return 'media'
+
+    # Browser (catch-all after specific browser-based detections above)
+    browser_kw = ['chrome', 'firefox', 'edge', 'opera', 'brave', 'safari', 'vivaldi']
+    if any(k in proc_lower for k in browser_kw) or 'browsing' in summary_lower:
+        return 'browsing'
+
+    return 'unknown'

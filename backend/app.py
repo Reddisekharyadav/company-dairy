@@ -1252,29 +1252,71 @@ def api_rebuild_index():
         return JSONResponse({'error': str(e)}, status_code=500)
 
 @app.get('/api/timeline')
-def api_timeline(limit: int = 50, offset: int = 0):
-    """Return paginated frames with WebP URLs and OmniParser JSON data."""
+def api_timeline(limit: int = 50, offset: int = 0, date: str = None):
+    """Return paginated frames with WebP URLs, activity analysis, and OmniParser JSON data."""
     try:
         from database.models import ScreenFrame
         session = SessionLocal()
         
-        frames = session.query(ScreenFrame).order_by(ScreenFrame.timestamp.desc()).offset(offset).limit(limit).all()
+        query = session.query(ScreenFrame)
+        if date:
+            query = query.filter(ScreenFrame.session_date == date)
+        frames = query.order_by(ScreenFrame.timestamp.desc()).offset(offset).limit(limit).all()
         result = []
         for f in frames:
+            ocr_text = f.ocr_text or ''
             result.append({
                 'id': f.id,
                 'timestamp': f.timestamp.isoformat() if f.timestamp else None,
-                'process_name': f.process_name,
-                'window_title': f.window_title,
-                'ocr_text': f.ocr_text,
-                'analysis_summary': f.analysis_summary,
-                'detected_category': f.detected_category,
+                'process_name': f.process_name or '',
+                'window_title': f.window_title or '',
+                'ocr_preview': ocr_text[:300] if ocr_text else '',
+                'ocr_text_length': f.ocr_text_length or 0,
+                'analysis_summary': f.analysis_summary or '',
+                'detected_category': f.detected_category or 'unknown',
                 'is_duplicate': f.is_duplicate,
+                'file_size_kb': round((f.file_size_bytes or 0) / 1024, 1),
                 'omniparser_json': json.loads(f.omniparser_json) if f.omniparser_json else None,
             })
             
         session.close()
-        return JSONResponse({'frames': result})
+        return JSONResponse({'frames': result, 'total': len(result), 'offset': offset})
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.get('/api/timeline/reanalyze')
+def api_reanalyze():
+    """Retroactively analyze all ScreenFrames that are missing analysis_summary.
+    Uses the local screen_analyzer to generate human-readable descriptions
+    and categories from stored OCR text + window metadata."""
+    try:
+        from database.models import ScreenFrame
+        from ocr.screen_analyzer import analyze_screen, detect_category
+        session = SessionLocal()
+        
+        # Find frames needing analysis
+        frames = session.query(ScreenFrame).filter(
+            (ScreenFrame.analysis_summary == None) | (ScreenFrame.analysis_summary == '')
+        ).all()
+        
+        updated = 0
+        for f in frames:
+            ocr = f.ocr_text or ''
+            proc = f.process_name or ''
+            title = f.window_title or ''
+            
+            summary = analyze_screen(ocr, proc, title)
+            category = detect_category(proc, title, summary)
+            
+            if summary:
+                f.analysis_summary = summary
+            if category:
+                f.detected_category = category
+            updated += 1
+            
+        session.commit()
+        session.close()
+        return JSONResponse({'status': 'ok', 'frames_updated': updated})
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
 
@@ -1287,3 +1329,4 @@ def api_search(q: str = '', limit: int = 20):
         return JSONResponse({'results': results})
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
+
