@@ -28,8 +28,6 @@ hiddenimports += [
     'tkinter.messagebox',
     'ui',
     'ui.status_widget',
-    # Tray icon
-    'pystray._win32',
     # System monitoring
     'psutil',
     # Image & OCR (screen capture)
@@ -98,12 +96,27 @@ hiddenimports += [
 ]
 
 # Platform-specific imports
+try:
+    hiddenimports += collect_submodules('pystray')
+except Exception:
+    pass
+
 if platform.system() == 'Windows':
     hiddenimports += [
+        'pystray._win32',
         'win32gui',
         'win32process',
         'win32con',
         'pywintypes',
+    ]
+elif platform.system() == 'Darwin':
+    hiddenimports += [
+        'pystray._darwin',
+    ]
+elif platform.system() == 'Linux':
+    hiddenimports += [
+        'pystray._xorg',
+        'pystray._appindicator',
     ]
 
 # ── Data files ────────────────────────────────────────────────────────────────
@@ -140,6 +153,9 @@ analysis = Analysis(
         'pandas',
         'test',
         'unittest',
+        'torch',
+        'torchvision',
+        'transformers',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -164,5 +180,5 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,      # Silent — no console window
     icon=None,
-    version=os.path.join(project_root, 'version_info.txt'),
+    version=os.path.join(project_root, 'version_info.txt') if platform.system() == 'Windows' else None,
 )

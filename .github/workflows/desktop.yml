@@ -2,6 +2,8 @@ name: Build WorkSense Desktop
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -11,6 +13,7 @@ jobs:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
@@ -47,14 +50,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pyinstaller
 
       - name: Build with PyInstaller
         run: |
           pyinstaller worksense_onefile.spec --noconfirm --clean
 
-      - name: Rename Executable
+      - name: Rename & Set Permissions
         run: |
           mv dist/${{ matrix.executable_name }} dist/${{ matrix.asset_name }}
+          chmod +x dist/${{ matrix.asset_name }} || true
         shell: bash
 
       - name: Create ZIP archive
@@ -69,8 +74,57 @@ jobs:
           name: ${{ matrix.zip_name }}
           path: dist/${{ matrix.zip_name }}
 
-  release:
-    name: Create Release
+  # ── Rolling "latest" release — updated on every push to master ──────────────
+  release-latest:
+    name: Update Latest Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Delete existing latest release (if any)
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Create latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "WorkSense AI Latest (${{ steps.sha.outputs.short }})"
+          body: |
+            🔄 **Auto-built from latest `master` commit** `${{ github.sha }}`
+
+            This release is automatically updated on every push to `master`.
+            Executables are available for Windows, Linux, and macOS with all the latest features.
+
+            ### Downloads
+            - 🪟 **Windows**: [WorkSense-Windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Windows.zip)
+            - 🐧 **Linux**: [WorkSense-Linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Linux.zip)
+            - 🍎 **macOS**: [WorkSense-macOS.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-macOS.zip)
+          make_latest: true
+          prerelease: false
+          files: |
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Tagged version release ──────────────────────────────────────────────────
+  release-tagged:
+    name: Create Tagged Release
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -81,20 +135,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
+          merge-multiple: true
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          make_latest: true
           files: |
-            dist/**/*.zip
+            dist/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ── GitHub Pages deploy ─────────────────────────────────────────────────────
   deploy-pages:
     name: Deploy GitHub Pages
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
       pages: write
@@ -109,4 +166,3 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
           publish_branch: gh-pages
-

@@ -34,6 +34,8 @@ app.add_middleware(
 )
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
+if not os.path.exists(static_dir) and hasattr(sys, '_MEIPASS'):
+    static_dir = os.path.join(sys._MEIPASS, "backend", "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
