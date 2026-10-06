@@ -23,12 +23,15 @@ try:
     import sqlite_vec
     @event.listens_for(engine, "connect")
     def _load_sqlite_vec(dbapi_connection, connection_record):
-        dbapi_connection.enable_load_extension(True)
-        sqlite_vec.load(dbapi_connection)
-        dbapi_connection.enable_load_extension(False)
+        try:
+            dbapi_connection.enable_load_extension(True)
+            sqlite_vec.load(dbapi_connection)
+            dbapi_connection.enable_load_extension(False)
+        except Exception as e:
+            log.warning("Could not load sqlite-vec extension: %s", e)
     log.info("sqlite-vec extension registered.")
-except ImportError:
-    log.warning("sqlite-vec not installed, semantic vector search won't be available.")
+except Exception as e:
+    log.warning("sqlite-vec not available: %s", e)
 
 SessionLocal = sessionmaker(bind=engine)
 

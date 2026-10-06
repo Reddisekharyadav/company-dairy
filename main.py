@@ -364,6 +364,29 @@ def open_dashboard(_=None):
         log.warning('Could not open browser dashboard: %s', e)
 
 
+def open_dashboard_when_ready(port: int, timeout: float = 15.0):
+    """Poll the web server until it answers before launching the browser."""
+    def _poll_and_open():
+        import urllib.request
+        start = time.time()
+        url = f'http://127.0.0.1:{port}/'
+        while time.time() - start < timeout:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'WorkSense-HealthCheck'})
+                with urllib.request.urlopen(req, timeout=1.0) as resp:
+                    if resp.status == 200:
+                        log.info('Dashboard server is responding on %s; opening browser', url)
+                        webbrowser.open(url)
+                        return
+            except Exception:
+                time.sleep(0.3)
+        log.warning('Dashboard readiness check timed out; opening %s anyway', url)
+        webbrowser.open(url)
+
+    t = threading.Thread(target=_poll_and_open, daemon=True)
+    t.start()
+
+
 def on_exit(icon, _=None):
     log.info('User requested exit')
     try:
@@ -409,6 +432,21 @@ def resume_tracking(_=None):
             _notify('WorkSense ▶', 'Tracking resumed!')
     except Exception as e:
         log.warning('Resume error: %s', e)
+
+
+def _find_available_port(preferred_port=8765):
+    """Prefer default port (8765), fall back to 8000/8080, then dynamic."""
+    import socket
+    for p in (preferred_port, 8000, 8080):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', p))
+                return p
+        except OSError:
+            continue
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
 
 
 # ── Web server thread ────────────────────────────────────────────────────────
@@ -489,24 +527,27 @@ def main(argv=None):
     except Exception as e:
         log.warning('Consent dialog error: %s', e)
 
-    # Find a free dynamic port to avoid conflicts
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        server_port = s.getsockname()[1]
+    server_port = _find_available_port(8765)
+    try:
+        from ui.status_widget import set_server_port
+        set_server_port(server_port)
+    except Exception:
+        pass
 
     # Start the web server (which initializes DB, activity tracker, git watcher, screen worker)
     web_thread = threading.Thread(target=_start_web_server, args=(server_port,), daemon=True)
     web_thread.start()
     _start_daily_report_scheduler()
 
+    # Automatically open the dashboard in the default browser when the server is actually ready
+    open_dashboard_when_ready(server_port)
+
     # ── Launch floating status widget ──────────────────────────────────────
     # Wait a moment for backend to initialize tracker + screen_worker
-    time.sleep(1.5)
+    time.sleep(1.0)
     try:
-        from ui.status_widget import launch_widget, set_server_port
+        from ui.status_widget import launch_widget
         from backend.app import tracker as _tracker, screen_worker as _sw
-        set_server_port(server_port)
 
         def _widget_exit_callback():
             """Called when the user clicks Kill in the floating widget."""
@@ -529,9 +570,6 @@ def main(argv=None):
         log.info('Status widget launched.')
     except Exception as e:
         log.warning('Could not launch status widget: %s', e)
-
-    # Automatically open the dashboard in the default browser on launch
-    open_dashboard()
 
     # Build tray menu
     menu = Menu(

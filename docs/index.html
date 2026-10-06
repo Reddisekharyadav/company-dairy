@@ -476,11 +476,11 @@
     <!-- ── Hero ─────────────────────────────────────── -->
     <section class="hero">
         <div class="hero-content">
-            <div class="hero-badge"><span class="dot"></span> v2.0 — Now with Browser History Tracking</div>
+            <div class="hero-badge"><span class="dot"></span> v4.0 — Microsoft Recall Vision AI & Semantic Search</div>
             <h1>Know exactly what<br>you <span class="gradient-text">worked on</span> today.</h1>
             <p>WorkSense AI silently tracks your desktop activity, browser history, code edits, and generates beautiful daily reports — all 100% offline, no cloud, no server.</p>
             <div class="hero-buttons">
-                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-Windows.zip" class="btn btn-primary">⬇ Download for Windows (.zip)</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="btn btn-primary">⬇ Download for Windows (.zip)</a>
                 <a href="https://github.com/Reddisekharyadav/company-dairy" class="btn btn-secondary" target="_blank">⭐ View on GitHub</a>
             </div>
             <p class="hero-platforms">
@@ -613,19 +613,19 @@
                     <div class="dl-icon">🪟</div>
                     <h3>Windows</h3>
                     <p>Windows 10 / 11 (64-bit)</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-Windows.zip" class="dl-btn">⬇ Download .zip</a>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="dl-btn">⬇ Download .zip</a>
                 </div>
                 <div class="dl-card reveal">
                     <div class="dl-icon">🍎</div>
                     <h3>macOS</h3>
                     <p>macOS 12+ (Apple Silicon & Intel)</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-macOS.zip" class="dl-btn">⬇ Download</a>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-macOS.zip" class="dl-btn">⬇ Download</a>
                 </div>
                 <div class="dl-card reveal">
                     <div class="dl-icon">🐧</div>
                     <h3>Linux</h3>
                     <p>Ubuntu 20.04+ / Fedora / Arch</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/latest/download/WorkSense-Linux.zip" class="dl-btn">⬇ Download</a>
+                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Linux.zip" class="dl-btn">⬇ Download</a>
                 </div>
             </div>
             <div class="smartscreen-notice reveal">
@@ -698,8 +698,8 @@
                 // Update version badge
                 const badge = document.querySelector('.hero-badge');
                 if (badge) {
-                    const ver = release.tag_name || 'v2.0';
-                    badge.innerHTML = `<span class="dot"></span> ${ver} — Latest Release`;
+                    const ver = (release.tag_name === 'latest' ? (release.name || 'Latest Version') : (release.tag_name || 'v4.0'));
+                    badge.innerHTML = `<span class="dot"></span> ${ver}`;
                 }
 
                 // Update download buttons with actual release assets

@@ -4,7 +4,7 @@
 # Build: venv\Scripts\python.exe -m PyInstaller worksense_onefile.spec --noconfirm --clean
 import os
 import platform
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_dynamic_libs
 
 project_root = os.path.abspath(os.getcwd())
 block_cipher = None
@@ -119,8 +119,15 @@ elif platform.system() == 'Linux':
         'pystray._appindicator',
     ]
 
-# ── Data files ────────────────────────────────────────────────────────────────
+# ── Data files & Binaries ─────────────────────────────────────────────────────
 datas = []
+binaries = []
+
+try:
+    datas += collect_data_files('sqlite_vec')
+    binaries += collect_dynamic_libs('sqlite_vec')
+except Exception:
+    pass
 
 # Bundle backend templates and static files
 for base_dir in ('backend/templates', 'backend/static'):
@@ -141,7 +148,7 @@ if os.path.isfile(env_file):
 analysis = Analysis(
     ['main.py'],
     pathex=[project_root],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
