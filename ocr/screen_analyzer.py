@@ -58,7 +58,7 @@ def _detect_coding(ocr_text, proc, title):
         'idea64.exe': 'IntelliJ', 'idea': 'IntelliJ',
         'webstorm': 'WebStorm', 'cursor.exe': 'Cursor', 'cursor': 'Cursor',
         'sublime_text.exe': 'Sublime Text', 'notepad++.exe': 'Notepad++',
-        'vim': 'Vim', 'nvim': 'Neovim', 'emacs': 'Emacs',
+        'vim': 'Vim', 'nvim': 'Neovim', 'emacs': 'Emacs','antigravity':'Antigravity'
     }
 
     proc_lower = (proc or '').lower()

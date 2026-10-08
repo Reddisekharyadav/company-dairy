@@ -303,7 +303,7 @@ def api_websites(period: str = 'daily'):
 
 
 @app.get('/api/timeline/chart')
-def api_timeline(period: str = 'daily'):
+def api_timeline_chart(period: str = 'daily'):
     """Return activity bucketed by hour for chart display."""
     session = SessionLocal()
     try:
@@ -348,16 +348,25 @@ def api_screenshots(limit: int = 12):
         session.close()
 
 
-@app.get('/api/screenshot/{ocr_id}')
-def serve_screenshot(ocr_id: int):
-    """Serve a screenshot file by OCR record ID."""
+@app.get('/api/screenshot/{item_id}')
+def serve_screenshot(item_id: int):
+    """Serve a screenshot file by ScreenFrame ID or legacy OCRText ID."""
     session = SessionLocal()
     try:
-        from database.models import OCRText
-        row = session.query(OCRText).filter(OCRText.id == ocr_id).first()
+        from database.models import ScreenFrame, OCRText
+        # 1. Check ScreenFrame (Visual Timeline / Microsoft Recall frames)
+        frame = session.query(ScreenFrame).filter(ScreenFrame.id == item_id).first()
+        if frame and frame.screenshot_path and os.path.exists(frame.screenshot_path):
+            media_type = 'image/webp' if frame.screenshot_path.endswith('.webp') else 'image/jpeg'
+            return FileResponse(frame.screenshot_path, media_type=media_type)
+
+        # 2. Check legacy OCRText
+        row = session.query(OCRText).filter(OCRText.id == item_id).first()
         if row and row.screenshot_path and os.path.exists(row.screenshot_path):
-            return FileResponse(row.screenshot_path, media_type='image/jpeg')
-        return JSONResponse({"error": "Not found"}, status_code=404)
+            media_type = 'image/webp' if row.screenshot_path.endswith('.webp') else 'image/jpeg'
+            return FileResponse(row.screenshot_path, media_type=media_type)
+
+        return JSONResponse({"error": "Screenshot not found"}, status_code=404)
     finally:
         session.close()
 
@@ -1032,82 +1041,6 @@ def api_files_detailed(days: int = 7, limit: int = 30):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-# @app.get('/api/search')
-def api_search(q: str = '', mode: str = 'hybrid', limit: int = 20):
-    """
-    Hybrid search across all captured screen content.
-    Modes: 'keyword' (FTS5), 'semantic' (vector), 'hybrid' (RRF fusion)
-    """
-    if not q.strip():
-        return JSONResponse({'results': [], 'query': '', 'mode': mode})
-    try:
-        from ocr.search_engine import HybridSearchEngine
-        engine = HybridSearchEngine()
-        if mode == 'keyword':
-            results = engine.search_keyword(q, limit=limit)
-        elif mode == 'semantic':
-            results = engine.search_semantic(q, limit=limit)
-        else:
-            results = engine.search_hybrid(q, limit=limit)
-        return JSONResponse({
-            'results': results,
-            'query': q,
-            'mode': mode,
-            'count': len(results),
-        })
-    except Exception as e:
-        return JSONResponse({'error': str(e), 'results': []}, status_code=500)
-
-
-# @app.get('/api/timeline')
-def api_timeline(date: str = '', page: int = 1, per_page: int = 50):
-    """
-    Screenshot timeline for visual day scrubbing.
-    Returns paginated screen frames with metadata for the given date.
-    """
-    try:
-        from database.models import ScreenFrame
-        session = SessionLocal()
-        target_date = date or datetime.now().strftime('%Y-%m-%d')
-
-        query = (session.query(ScreenFrame)
-                 .filter(ScreenFrame.session_date == target_date,
-                         ScreenFrame.is_duplicate == False)
-                 .order_by(ScreenFrame.timestamp.asc()))
-
-        total = query.count()
-        offset = (page - 1) * per_page
-        frames = query.offset(offset).limit(per_page).all()
-
-        results = []
-        for f in frames:
-            results.append({
-                'id': f.id,
-                'timestamp': f.timestamp.isoformat() if f.timestamp else None,
-                'time': f.timestamp.strftime('%H:%M:%S') if f.timestamp else '',
-                'screenshot_path': f.screenshot_path,
-                'process_name': f.process_name,
-                'window_title': f.window_title,
-                'category': f.detected_category,
-                'summary': f.analysis_summary,
-                'ocr_text_preview': (f.ocr_text or '')[:200],
-                'file_size_kb': round((f.file_size_bytes or 0) / 1024, 1),
-                'privacy_scrubbed': f.privacy_scrubbed,
-            })
-
-        session.close()
-        return JSONResponse({
-            'date': target_date,
-            'frames': results,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': (total + per_page - 1) // per_page,
-        })
-    except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
-
-
 @app.get('/api/timeline/dates')
 def api_timeline_dates():
     """Return list of dates that have captured screen frames."""
@@ -1158,22 +1091,6 @@ def api_frame_detail(frame_id: int):
         return JSONResponse({'error': str(e)}, status_code=500)
 
 
-@app.get('/api/screenshot/{frame_id}')
-def api_serve_screenshot(frame_id: int):
-    """Serve a screenshot image file for a given frame ID."""
-    try:
-        from database.models import ScreenFrame
-        session = SessionLocal()
-        frame = session.query(ScreenFrame).filter(ScreenFrame.id == frame_id).first()
-        session.close()
-        if not frame or not frame.screenshot_path:
-            return JSONResponse({'error': 'Screenshot not found'}, status_code=404)
-        if not os.path.exists(frame.screenshot_path):
-            return JSONResponse({'error': 'File missing from disk'}, status_code=404)
-        media_type = 'image/webp' if frame.screenshot_path.endswith('.webp') else 'image/jpeg'
-        return FileResponse(frame.screenshot_path, media_type=media_type)
-    except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
 
 
 @app.get('/api/privacy/rules')
@@ -1244,11 +1161,18 @@ def api_storage_stats():
 
 @app.get('/api/search/rebuild_index')
 def api_rebuild_index():
-    """Rebuild FTS5 search index from existing data."""
+    """Rebuild FTS5 search index from existing screen_frames data."""
     try:
-        from ocr.search_engine import HybridSearchEngine
-        engine = HybridSearchEngine()
-        engine.rebuild_fts_index()
+        from sqlalchemy import text as sa_text
+        session = SessionLocal()
+        session.execute(sa_text("DELETE FROM screen_frames_fts"))
+        session.execute(sa_text("""
+            INSERT INTO screen_frames_fts(rowid, ocr_text, window_title, analysis_summary)
+            SELECT id, COALESCE(ocr_text, ''), COALESCE(window_title, ''), COALESCE(analysis_summary, '')
+            FROM screen_frames
+        """))
+        session.commit()
+        session.close()
         return JSONResponse({'status': 'FTS5 index rebuilt successfully'})
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
@@ -1263,10 +1187,17 @@ def api_timeline(limit: int = 50, offset: int = 0, date: str = None):
         query = session.query(ScreenFrame)
         if date:
             query = query.filter(ScreenFrame.session_date == date)
+        total_count = query.count()
         frames = query.order_by(ScreenFrame.timestamp.desc()).offset(offset).limit(limit).all()
         result = []
         for f in frames:
             ocr_text = f.ocr_text or ''
+            omni_data = None
+            if f.omniparser_json:
+                try:
+                    omni_data = json.loads(f.omniparser_json)
+                except Exception:
+                    omni_data = None
             result.append({
                 'id': f.id,
                 'timestamp': f.timestamp.isoformat() if f.timestamp else None,
@@ -1278,31 +1209,45 @@ def api_timeline(limit: int = 50, offset: int = 0, date: str = None):
                 'detected_category': f.detected_category or 'unknown',
                 'is_duplicate': f.is_duplicate,
                 'file_size_kb': round((f.file_size_bytes or 0) / 1024, 1),
-                'omniparser_json': json.loads(f.omniparser_json) if f.omniparser_json else None,
+                'omniparser_json': omni_data,
             })
             
         session.close()
-        return JSONResponse({'frames': result, 'total': len(result), 'offset': offset})
+        return JSONResponse({'frames': result, 'total': total_count, 'offset': offset})
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=500)
 
 @app.get('/api/timeline/reanalyze')
 def api_reanalyze():
-    """Retroactively analyze all ScreenFrames that are missing analysis_summary.
-    Uses the local screen_analyzer to generate human-readable descriptions
-    and categories from stored OCR text + window metadata."""
+    """Retroactively OCR and analyze all ScreenFrames that are missing text or summary.
+    Extracts text using native WinOCR if ocr_text was empty, generates human-readable
+    summaries and categories, and syncs into the FTS5 search index."""
     try:
         from database.models import ScreenFrame
         from ocr.screen_analyzer import analyze_screen, detect_category
+        from sqlalchemy import text as sa_text
+        try:
+            from ocr.win_ocr import extract_text as win_ocr_extract
+        except Exception:
+            win_ocr_extract = None
+
         session = SessionLocal()
         
-        # Find frames needing analysis
-        frames = session.query(ScreenFrame).filter(
-            (ScreenFrame.analysis_summary == None) | (ScreenFrame.analysis_summary == '')
-        ).all()
+        frames = session.query(ScreenFrame).all()
         
         updated = 0
         for f in frames:
+            # 1. Backfill OCR if empty
+            if (not f.ocr_text or len(f.ocr_text.strip()) == 0) and f.screenshot_path and os.path.exists(f.screenshot_path) and win_ocr_extract:
+                try:
+                    ocr_res = win_ocr_extract(f.screenshot_path)
+                    extracted = ocr_res.get('text', '') if isinstance(ocr_res, dict) else ''
+                    if extracted:
+                        f.ocr_text = extracted
+                        f.ocr_text_length = len(extracted)
+                except Exception as oe:
+                    log.debug('Reanalyze OCR error for frame %s: %s', f.id, oe)
+
             ocr = f.ocr_text or ''
             proc = f.process_name or ''
             title = f.window_title or ''
@@ -1314,6 +1259,16 @@ def api_reanalyze():
                 f.analysis_summary = summary
             if category:
                 f.detected_category = category
+            
+            # Sync to FTS5
+            try:
+                session.execute(
+                    sa_text("INSERT OR REPLACE INTO screen_frames_fts(rowid, ocr_text, window_title, analysis_summary) VALUES (:id, :txt, :title, :summary)"),
+                    {"id": f.id, "txt": ocr, "title": title, "summary": summary or ""}
+                )
+            except Exception:
+                pass
+                
             updated += 1
             
         session.commit()

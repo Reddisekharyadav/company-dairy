@@ -256,6 +256,18 @@ class ScreenCaptureWorker:
                             session.rollback()
                             log.debug("FTS5 indexing failed: %s", fts_e)
 
+                        # ── Index into sqlite-vec ──
+                        if embedding_vector and search_engine:
+                            try:
+                                session.execute(
+                                    sa_text("INSERT INTO screen_frames_vec(rowid, embedding) VALUES (:id, :emb)"),
+                                    {"id": frame.id, "emb": search_engine.serialize_vector(embedding_vector)}
+                                )
+                                session.commit()
+                            except Exception as vec_e:
+                                session.rollback()
+                                log.debug("sqlite-vec indexing failed: %s", vec_e)
+
                         log.info("Recall frame #%s saved (%s KB, OCR %d chars, hash %s)", 
                                  frame.id, round(file_size/1024, 1), len(ocr_text), phash_hex[:8])
 

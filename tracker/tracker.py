@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 from database.session import SessionLocal
-from database.models import Event, BrowserHistory, FileEdit, GitActivity, Report
+from database.models import Event, BrowserHistory, FileEdit, GitActivity, Report, ScreenFrame
 from tracker.active_window import get_active_window
 from tracker.categorizer import categorize_activity, extract_website_name
 from tracker.input_tracker import input_tracker
@@ -64,11 +64,23 @@ class ActivityTracker:
         _, ext = os.path.splitext(filename)
         return EXT_LANG_MAP.get(ext.lower())
 
-    def _cleanup_old_data(self, session: Session, retention_days: int = 30):
-        """Deletes data older than retention_days from database and disk."""
+    def _cleanup_old_data(self, session: Session, retention_days: int = 30, max_storage_mb: int = 2048):
+        """Deletes data older than retention_days from database and disk, and prunes storage if exceeding limit."""
         cutoff_date = datetime.now() - timedelta(days=retention_days)
         try:
-            # 1. Delete old DB records
+            # 1. Delete old ScreenFrame records and their files
+            old_frames = session.query(ScreenFrame).filter(ScreenFrame.timestamp < cutoff_date).all()
+            deleted_frames_count = 0
+            for frame in old_frames:
+                if frame.screenshot_path and os.path.exists(frame.screenshot_path):
+                    try:
+                        os.remove(frame.screenshot_path)
+                    except OSError:
+                        pass
+                session.delete(frame)
+                deleted_frames_count += 1
+
+            # 2. Delete other old DB records
             deleted_events = session.query(Event).filter(Event.timestamp < cutoff_date).delete()
             deleted_bh = session.query(BrowserHistory).filter(BrowserHistory.timestamp < cutoff_date).delete()
             deleted_fe = session.query(FileEdit).filter(FileEdit.timestamp < cutoff_date).delete()
@@ -76,26 +88,59 @@ class ActivityTracker:
             deleted_reports = session.query(Report).filter(Report.created_at < cutoff_date).delete()
             session.commit()
             
-            total_deleted = deleted_events + deleted_bh + deleted_fe + deleted_ga + deleted_reports
+            total_deleted = deleted_events + deleted_bh + deleted_fe + deleted_ga + deleted_reports + deleted_frames_count
             if total_deleted > 0:
                 log.info("Cleanup: Deleted %d old DB records older than %s", total_deleted, cutoff_date.date())
 
-            # 2. Delete old screenshots
-            screenshots_dir = os.path.join(os.getcwd(), 'screenshots')
-            if os.path.exists(screenshots_dir):
+            # 3. Clean screenshot directories (AppData WorkSense/screenshots & local screenshots)
+            dirs_to_clean = []
+            appdata_scr = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "WorkSense", "screenshots")
+            if os.path.exists(appdata_scr):
+                dirs_to_clean.append(appdata_scr)
+            local_scr = os.path.join(os.getcwd(), 'screenshots')
+            if os.path.exists(local_scr) and local_scr != appdata_scr:
+                dirs_to_clean.append(local_scr)
+
+            for sdir in dirs_to_clean:
                 deleted_imgs = 0
-                for filename in os.listdir(screenshots_dir):
-                    filepath = os.path.join(screenshots_dir, filename)
+                all_files = []
+                for filename in os.listdir(sdir):
+                    filepath = os.path.join(sdir, filename)
                     if os.path.isfile(filepath):
-                        # Use file modification time
-                        if datetime.fromtimestamp(os.path.getmtime(filepath)) < cutoff_date:
+                        mtime = os.path.getmtime(filepath)
+                        size = os.path.getsize(filepath)
+                        all_files.append((filepath, mtime, size))
+                        if datetime.fromtimestamp(mtime) < cutoff_date:
                             try:
                                 os.remove(filepath)
                                 deleted_imgs += 1
                             except OSError:
                                 pass
                 if deleted_imgs > 0:
-                    log.info("Cleanup: Deleted %d old screenshots", deleted_imgs)
+                    log.info("Cleanup: Deleted %d old screenshots from %s", deleted_imgs, sdir)
+
+                # 4. Storage cap check: if folder exceeds max_storage_mb, remove oldest files
+                try:
+                    remaining_files = [(p, m, s) for p, m, s in all_files if os.path.exists(p)]
+                    total_mb = sum(s for _, _, s in remaining_files) / (1024 * 1024)
+                    if total_mb > max_storage_mb:
+                        # Sort by mtime ascending (oldest first)
+                        remaining_files.sort(key=lambda x: x[1])
+                        freed_mb = 0
+                        pruned_count = 0
+                        for fpath, _, fsize in remaining_files:
+                            if total_mb - freed_mb <= max_storage_mb:
+                                break
+                            try:
+                                os.remove(fpath)
+                                freed_mb += fsize / (1024 * 1024)
+                                pruned_count += 1
+                            except OSError:
+                                pass
+                        log.info("Storage cap: Pruned %d screenshots (freed %.1f MB) in %s", pruned_count, freed_mb, sdir)
+                except Exception as cap_err:
+                    log.debug("Storage cap check error: %s", cap_err)
+
         except Exception as e:
             log.error("Cleanup error: %s", e)
             session.rollback()

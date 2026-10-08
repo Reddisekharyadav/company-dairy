@@ -35,8 +35,51 @@ class WinOCREngine:
             
             lines = []
             full_text = []
-            
-            if hasattr(result, 'lines'):
+
+            # winocr.recognize_pil_sync returns a dict: {'text': str, 'lines': list, ...}
+            if isinstance(result, dict):
+                if result.get('text'):
+                    full_text.append(result['text'])
+                raw_lines = result.get('lines', [])
+                for line in raw_lines:
+                    if isinstance(line, dict):
+                        line_text = line.get('text', '')
+                        words = []
+                        for word in line.get('words', []):
+                            rect = word.get('bounding_rect', {}) if isinstance(word, dict) else getattr(word, 'bounding_rect', {})
+                            if isinstance(rect, dict):
+                                bbox = [int(rect.get('x', 0)), int(rect.get('y', 0)), int(rect.get('width', 0)), int(rect.get('height', 0))]
+                            elif hasattr(rect, 'x'):
+                                bbox = [int(rect.x), int(rect.y), int(rect.width), int(rect.height)]
+                            else:
+                                bbox = [0, 0, 0, 0]
+                            words.append({
+                                "text": word.get('text', '') if isinstance(word, dict) else getattr(word, 'text', ''),
+                                "bbox": bbox
+                            })
+                        lines.append({
+                            "text": line_text,
+                            "words": words
+                        })
+                    elif hasattr(line, 'text'):
+                        words = []
+                        if hasattr(line, 'words'):
+                            for word in line.words:
+                                bbox = [0, 0, 0, 0]
+                                if hasattr(word, 'bounding_rect'):
+                                    rect = word.bounding_rect
+                                    bbox = [int(rect.x), int(rect.y), int(rect.width), int(rect.height)]
+                                words.append({
+                                    "text": getattr(word, 'text', ''),
+                                    "bbox": bbox
+                                })
+                        lines.append({
+                            "text": line.text,
+                            "words": words
+                        })
+                if not full_text and lines:
+                    full_text = [l['text'] for l in lines]
+            elif hasattr(result, 'lines'):
                 for line in result.lines:
                     full_text.append(line.text)
                     words = []
@@ -55,9 +98,8 @@ class WinOCREngine:
                         "words": words
                     })
             elif hasattr(result, 'text'):
-                # Simpler result format
                 full_text.append(result.text)
-                
+
             return {
                 "text": "\n".join(full_text),
                 "lines": lines
