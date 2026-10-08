@@ -253,19 +253,43 @@ def api_search_memory(query: str, days: int = 7, limit: int = 50):
 
     session = SessionLocal()
     try:
-        from database.models import OCRText
+        from database.models import ScreenFrame, OCRText
         start = datetime.now() - timedelta(days=days)
-        # Simple LIKE query for sqlite
+        q = f"%{query.strip()}%"
+
+        # 1. Search ScreenFrame (Recall frames)
+        frames = session.query(ScreenFrame).filter(
+            ScreenFrame.timestamp >= start,
+            (ScreenFrame.ocr_text.ilike(q) | ScreenFrame.window_title.ilike(q) | ScreenFrame.analysis_summary.ilike(q))
+        ).order_by(ScreenFrame.timestamp.desc()).limit(limit).all()
+
+        results = []
+        for f in frames:
+            ts_str = f.timestamp.isoformat() if hasattr(f.timestamp, 'isoformat') else str(f.timestamp) if f.timestamp else None
+            results.append({
+                "id": f.id,
+                "timestamp": ts_str,
+                "source": f.process_name or f.window_title or 'Screen capture',
+                "text": f.ocr_text,
+                "screenshot_path": f.screenshot_path,
+                "summary": f.analysis_summary,
+                "category": f.detected_category or 'unknown',
+            })
+
+        if results:
+            return JSONResponse(results)
+
+        # 2. Fallback to legacy OCRText
         rows = session.query(OCRText).filter(
             OCRText.timestamp >= start,
-            OCRText.text.ilike(f'%{query.strip()}%')
+            OCRText.text.ilike(q)
         ).order_by(OCRText.timestamp.desc()).limit(limit).all()
-        
-        results = []
+
         for r in rows:
+            ts_str = r.timestamp.isoformat() if hasattr(r.timestamp, 'isoformat') else str(r.timestamp) if r.timestamp else None
             results.append({
                 "id": r.id,
-                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "timestamp": ts_str,
                 "source": r.source,
                 "text": r.text,
                 "screenshot_path": r.screenshot_path
@@ -333,13 +357,30 @@ def api_screenshots(limit: int = 12):
     """Return list of recent screenshot thumbnails."""
     session = SessionLocal()
     try:
-        from database.models import OCRText
+        from database.models import ScreenFrame, OCRText
+        # 1. Query ScreenFrame (Recall visual timeline frames)
+        frames = session.query(ScreenFrame).filter(
+            ScreenFrame.screenshot_path != None
+        ).order_by(ScreenFrame.timestamp.desc()).limit(limit).all()
+
+        if frames:
+            return JSONResponse([{
+                "id": f.id,
+                "timestamp": f.timestamp.isoformat() if hasattr(f.timestamp, 'isoformat') else str(f.timestamp) if f.timestamp else None,
+                "source": f.process_name or f.window_title or 'Screen capture',
+                "path": f.screenshot_path,
+                "text_preview": (f.ocr_text or '')[:200],
+                "summary": f.analysis_summary,
+                "category": f.detected_category or 'unknown',
+            } for f in frames])
+
+        # 2. Fallback to legacy OCRText
         rows = session.query(OCRText).filter(
             OCRText.screenshot_path != None
         ).order_by(OCRText.timestamp.desc()).limit(limit).all()
         return JSONResponse([{
             "id": r.id,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, 'isoformat') else str(r.timestamp) if r.timestamp else None,
             "source": r.source,
             "path": r.screenshot_path,
             "text_preview": (r.text or '')[:200],

@@ -1093,6 +1093,8 @@ function startAutoRefresh() {
       const activeTab = document.querySelector('.p-tab.active').id.replace('tab-', '');
       if (activeTab === 'today') {
         refreshTimeline(); refreshStats(); refreshScreenshots();
+      } else if (activeTab === 'timeline') {
+        loadTimeline();
       } else if (activeTab === 'company') {
         refreshCompanyStats(); refreshCompanyMeetings(); refreshCompanyInsights();
       } else if (activeTab === 'research') {
@@ -1313,9 +1315,10 @@ async function refreshScreenshots() {
     if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="screenshot-card" title="${s.source}">
+      const label = s.summary || s.source || 'Screen capture';
+      return `<div class="screenshot-card" title="${label}" style="cursor:pointer;" onclick="window.open('/api/screenshot/${s.id}')">
         <img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
-        <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div>
+        <div class="screenshot-meta"><strong>${time}</strong><br>${label.substring(0,35)}</div>
       </div>`;
     }).join('')}</div>`;
   } catch(e) {}
@@ -1961,8 +1964,11 @@ async function refreshScreenshots2() {
     if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="screenshot-card"><img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
-        <div class="screenshot-meta">${time}<br>${(s.source||'').substring(0,30)}</div></div>`;
+      const label = s.summary || s.source || 'Screen capture';
+      return `<div class="screenshot-card" title="${label}" style="cursor:pointer;" onclick="window.open('/api/screenshot/${s.id}')">
+        <img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
+        <div class="screenshot-meta"><strong>${time}</strong><br>${label.substring(0,35)}</div>
+      </div>`;
     }).join('')}</div>`;
   } catch(e) {}
 }
