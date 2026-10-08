@@ -27,11 +27,23 @@ def get_active_window() -> Tuple[Optional[str], Optional[str]]:
 
 # ── Windows ───────────────────────────────────────────────────────────────────
 
+def _ensure_default_desktop():
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        hdesk = user32.OpenDesktopW('default', 0, False, 0x01FF)
+        if hdesk:
+            user32.SetThreadDesktop(hdesk)
+    except Exception:
+        pass
+
+
 def _get_active_window_windows() -> Tuple[Optional[str], Optional[str]]:
     try:
         import win32gui
         import win32process
         import psutil
+        _ensure_default_desktop()
         hwnd = win32gui.GetForegroundWindow()
         title = win32gui.GetWindowText(hwnd)
         

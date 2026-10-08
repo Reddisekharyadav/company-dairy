@@ -48,6 +48,18 @@ def revoke_consent():
         CONSENT_FILE.write_text('revoked')
     log.info('Screen capture consent revoked.')
 
+def _ensure_default_desktop():
+    """Ensure the calling thread is attached to the interactive Windows desktop."""
+    if os.name == 'nt':
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hdesk = user32.OpenDesktopW('default', 0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
 def compute_dhash(img: Image.Image) -> int:
     """Compute 64-bit dHash of an image for deduplication."""
     # Resize to 64x36 grayscale
@@ -145,6 +157,7 @@ class ScreenCaptureWorker:
                 if not is_consent_granted():
                     break
 
+                _ensure_default_desktop()
                 proc, title = get_active_window()
                 proc = proc or ''
                 title = title or ''
@@ -162,6 +175,13 @@ class ScreenCaptureWorker:
                         monitor = sct.monitors[1]
                         sct_img = sct.grab(monitor)
                         img = Image.frombytes('RGB', sct_img.size, sct_img.bgra, 'raw', 'BGRX')
+
+                        # ── Skip Blank / Black / Locked Screens ──
+                        extrema = img.getextrema()
+                        if all(max_v == 0 for _, max_v in extrema):
+                            log.debug("Display is blank/locked/off. Skipping capture.")
+                            self._stop.wait(self.interval)
+                            continue
 
                         # ── Perceptual Hashing (dHash) ──
                         current_hash = compute_dhash(img)

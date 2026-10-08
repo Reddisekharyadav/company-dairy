@@ -520,6 +520,16 @@ def main(argv=None):
         log.error('Tray dependencies are unavailable; workspace commands are still available from the CLI.')
         return 1
 
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hdesk = user32.OpenDesktopW('default', 0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
     # ── Show consent dialog FIRST (only on first launch) ────────────────────
     try:
         from ui.status_widget import show_consent_dialog
