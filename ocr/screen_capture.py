@@ -216,6 +216,7 @@ class ScreenCaptureWorker:
 
                         # ── Embedding Generation (optional) ──
                         embedding_json_str = None
+                        embedding_vector = None
                         try:
                             if search_engine and ocr_text:
                                 embedding_vector = search_engine.encode(ocr_text[:2000])
