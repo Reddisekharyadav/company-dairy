@@ -65,7 +65,7 @@ hiddenimports += [
     'anyio',
     'httptools',
     'websockets',
-    'python_multipart',
+    'multipart',
     # Tracker modules
     'tracker.file_watcher',
     'tracker.search_extractor',
@@ -77,7 +77,13 @@ hiddenimports += [
     'tracker.smart_summarizer',
     'reports.briefing',
     'reports.excel_exporter',
+    'reports.renderers',
+    'arabic_reshaper',
+    'bidi',
+    'bidi.algorithm',
     'ocr.screen_analyzer',
+    'ocr.embeddings',
+    'ocr.search_engine',
     'openpyxl',
     'et_xmlfile',
     'watchdog',
@@ -139,10 +145,9 @@ for base_dir in ('backend/templates', 'backend/static'):
                 src = os.path.join(root_dir, fname)
                 datas.append((src, rel_dir))
 
-# Bundle .env file if it exists
-env_file = os.path.join(project_root, '.env')
-if os.path.isfile(env_file):
-    datas.append((env_file, '.'))
+# Never bundle .env or credentials into the executable.  Users configure
+# secrets through Windows environment variables or the AppData config file.
+# A .env placed next to the exe is read at runtime and stays outside the build.
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
 analysis = Analysis(

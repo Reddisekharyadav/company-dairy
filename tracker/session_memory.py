@@ -148,6 +148,9 @@ def save_session_state(period_hours: int = 24) -> dict:
             'categories_json': json.dumps(cat_map),
             'summary_text': summary,
             'ai_context_md': ai_ctx,
+            # The handoff intentionally spans the two work workspaces and is
+            # never used as a default report scope.
+            'workspace_scope': 'combined',
         }
 
         # Upsert in DB

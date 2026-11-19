@@ -5,6 +5,7 @@ This module provides a FrameDeduplicator class to detect duplicate or highly
 similar images (such as video frames or screenshots) using difference hashing (dHash).
 """
 import collections
+import hashlib
 from typing import Deque
 from PIL import Image
 
@@ -44,7 +45,15 @@ def compute_dhash(image: Image.Image, hash_size: int = 8) -> int:
             if pixels[idx] > pixels[idx + 1]:
                 # Set the corresponding bit to 1
                 hash_value |= (1 << (row * hash_size + col))
-                
+
+    # A pure dHash of a flat/solid-colour image is always 0, which makes every
+    # solid colour look identical (red == blue). Fall back to a deterministic
+    # colour signature so genuinely different flat frames stay distinguishable.
+    if pixels and (max(pixels) - min(pixels)) <= 2:
+        small = image.convert("RGB").resize((hash_size, hash_size), resample_filter)
+        digest = hashlib.blake2b(small.tobytes(), digest_size=8).digest()
+        return int.from_bytes(digest, "big")
+
     return hash_value
 
 def hamming_distance(hash1: int, hash2: int) -> int:

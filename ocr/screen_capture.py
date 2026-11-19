@@ -12,7 +12,7 @@ import time
 import logging
 import re
 import json
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -29,8 +29,14 @@ CONSENT_FILE = _appdata_dir() / 'screen_consent.txt'
 SCREENSHOT_DIR = _appdata_dir() / 'screenshots'
 
 # Privacy Blacklists
-SENSITIVE_PROCESSES = {'keepass', '1password', 'bitwarden', 'lastpass'}
-SENSITIVE_TITLES_REGEX = re.compile(r'(?i)(password|bank|incognito|private window|inprivate)')
+SENSITIVE_PROCESSES = {
+    'keepass', '1password', 'bitwarden', 'lastpass', 'keychain',
+    'credential', 'mstsc',
+}
+SENSITIVE_TITLES_REGEX = re.compile(
+    r'(?i)(password|passcode|bank|credit card|social security|\bssn\b|pin code|'
+    r'sign in|log in|login|incognito|private window|private browsing|inprivate)'
+)
 
 def is_consent_granted() -> bool:
     try:
@@ -87,22 +93,34 @@ class ScreenCaptureWorker:
     def __init__(self, interval: int = 30):
         self.interval = interval
         self._stop = Event()
-        self._thread = Thread(target=self._run, daemon=True)
+        self._thread = None
+        self._lock = Lock()
         self.last_hash = None
 
     def start(self):
         if not is_consent_granted():
             log.info('Screen capture not started — consent not granted.')
             return
-        self._stop.clear()
-        if not self._thread.is_alive():
-            self._thread = Thread(target=self._run, daemon=True)
+        with self._lock:
+            if (self._thread is not None and self._thread.is_alive()
+                    and not self._stop.is_set()):
+                log.info('Microsoft Recall capture worker already running (interval=%ds)', self.interval)
+                return
+            # Give each worker its own stop event so a worker that is still
+            # unwinding from a previous stop cannot be revived by a new start.
+            self._stop = Event()
+            stop_event = self._stop
+            self._thread = Thread(target=self._run, args=(stop_event,), daemon=True)
             self._thread.start()
         log.info('Microsoft Recall capture worker started (interval=%ds)', self.interval)
 
     def stop(self):
-        self._stop.set()
-        self._thread.join(timeout=3.0)
+        with self._lock:
+            stop_event = self._stop
+            thread = self._thread
+        stop_event.set()
+        if thread is not None:
+            thread.join(timeout=3.0)
 
     def _save_webp(self, img: Image.Image, timestamp: datetime) -> str:
         SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -112,7 +130,7 @@ class ScreenCaptureWorker:
         img.save(str(fpath), 'WEBP', quality=75)
         return str(fpath)
 
-    def _run(self):
+    def _run(self, stop_event: Event):
         from database.session import SessionLocal
         from database.models import ScreenFrame
         from config.settings import SESSION_ID
@@ -153,7 +171,7 @@ class ScreenCaptureWorker:
         session = SessionLocal()
 
         try:
-            while not self._stop.is_set():
+            while not stop_event.is_set():
                 if not is_consent_granted():
                     break
 
@@ -165,7 +183,7 @@ class ScreenCaptureWorker:
                 # ── Privacy Blacklist Check ──
                 if any(sp in proc.lower() for sp in SENSITIVE_PROCESSES) or SENSITIVE_TITLES_REGEX.search(title):
                     log.debug("Privacy rule triggered for %s / %s. Skipping.", proc, title)
-                    self._stop.wait(self.interval)
+                    stop_event.wait(self.interval)
                     continue
 
                 ts = datetime.now()
@@ -180,7 +198,7 @@ class ScreenCaptureWorker:
                         extrema = img.getextrema()
                         if all(max_v == 0 for _, max_v in extrema):
                             log.debug("Display is blank/locked/off. Skipping capture.")
-                            self._stop.wait(self.interval)
+                            stop_event.wait(self.interval)
                             continue
 
                         # ── Perceptual Hashing (dHash) ──
@@ -194,7 +212,7 @@ class ScreenCaptureWorker:
                         
                         if is_duplicate:
                             log.debug("Dedup: Frame identical to previous, skipping.")
-                            self._stop.wait(self.interval)
+                            stop_event.wait(self.interval)
                             continue
 
                         self.last_hash = current_hash
@@ -234,18 +252,14 @@ class ScreenCaptureWorker:
                         except Exception as ana_e:
                             log.debug("Screen analysis failed: %s", ana_e)
 
-                        # ── Embedding Generation (optional) ──
-                        embedding_json_str = None
-                        embedding_vector = None
-                        try:
-                            if search_engine and ocr_text:
-                                embedding_vector = search_engine.encode(ocr_text[:2000])
-                                if embedding_vector:
-                                    embedding_json_str = json.dumps(embedding_vector)
-                        except Exception as emb_e:
-                            log.debug("Embedding failed: %s", emb_e)
-
                         # ── Save to Database ──
+                        try:
+                            from config.workspace_rules import classifier
+                            frame_workspace = classifier.classify_application(
+                                process=proc or '', title=title or ''
+                            )
+                        except Exception:
+                            frame_workspace = 'unclassified'
                         frame = ScreenFrame(
                             timestamp=ts,
                             session_id=SESSION_ID,
@@ -261,11 +275,18 @@ class ScreenCaptureWorker:
                             analysis_summary=analysis_summary,
                             detected_category=detected_category,
                             omniparser_json=omniparser_json_str,
-                            embedding_json=embedding_json_str,
+                            embedding_json=None,
+                            workspace=frame_workspace,
                         )
                         session.add(frame)
                         session.commit()
-                        
+
+                        # Commit the screenshot before generating embeddings.
+                        # The first embedding call may download/load a model and
+                        # must never make a captured frame invisible in the UI.
+                        log.info("Recall frame #%s saved (%s KB, OCR %d chars, hash %s)",
+                                 frame.id, round(file_size/1024, 1), len(ocr_text), phash_hex[:8])
+
                         # ── Index into FTS5 ──
                         try:
                             session.execute(
@@ -277,24 +298,25 @@ class ScreenCaptureWorker:
                             session.rollback()
                             log.debug("FTS5 indexing failed: %s", fts_e)
 
-                        # ── Index into sqlite-vec ──
-                        if embedding_vector and search_engine:
+                        # ── Embedding + sqlite-vec index (optional) ──
+                        if search_engine and ocr_text:
                             try:
-                                session.execute(
-                                    sa_text("INSERT INTO screen_frames_vec(rowid, embedding) VALUES (:id, :emb)"),
-                                    {"id": frame.id, "emb": search_engine.serialize_vector(embedding_vector)}
-                                )
-                                session.commit()
-                            except Exception as vec_e:
+                                embedding_vector = search_engine.encode(ocr_text[:2000])
+                                if embedding_vector:
+                                    frame.embedding_json = json.dumps(embedding_vector)
+                                    session.execute(
+                                        sa_text("INSERT INTO screen_frames_vec(rowid, embedding) VALUES (:id, :emb)"),
+                                        {"id": frame.id, "emb": search_engine.serialize_vector(embedding_vector)}
+                                    )
+                                    session.commit()
+                                    log.info("Recall frame #%s embedding stored", frame.id)
+                            except Exception as emb_e:
                                 session.rollback()
-                                log.debug("sqlite-vec indexing failed: %s", vec_e)
-
-                        log.info("Recall frame #%s saved (%s KB, OCR %d chars, hash %s)", 
-                                 frame.id, round(file_size/1024, 1), len(ocr_text), phash_hex[:8])
+                                log.debug("Embedding/vector indexing failed: %s", emb_e)
 
                 except Exception as e:
                     log.error('Screen capture failed: %s', e)
 
-                self._stop.wait(self.interval)
+                stop_event.wait(self.interval)
         finally:
             session.close()

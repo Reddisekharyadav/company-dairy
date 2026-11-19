@@ -8,6 +8,7 @@ from sqlalchemy import (
     Text,
     Float,
     Boolean,
+    Index,
 )
 from sqlalchemy.orm import declarative_base
 
@@ -40,6 +41,12 @@ class Event(Base):
     category = Column(String(64), nullable=True)
     website = Column(String(256), nullable=True)
     input_state = Column(String(32), nullable=True)
+    # company / development / personal / unclassified
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_events_workspace_timestamp', 'workspace', 'timestamp'),
+    )
 
 
 class GitActivity(Base):
@@ -47,10 +54,22 @@ class GitActivity(Base):
     id = Column(Integer, primary_key=True)
     session_id = Column(String(64), nullable=True, index=True)
     repo = Column(String(1024))
-    commit_hash = Column(String(64))
+    commit_hash = Column(String(64), index=True)
     message = Column(Text)
     author = Column(String(256))
     timestamp = Column(DateTime, default=datetime.now)
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+    branch = Column(String(256), nullable=True)
+    files_changed = Column(Integer, nullable=True)
+    insertions = Column(Integer, nullable=True)
+    deletions = Column(Integer, nullable=True)
+    # Committed changes are distinct from uncommitted filesystem activity.
+    source = Column(String(32), default='git_commit')
+
+    __table_args__ = (
+        Index('ix_git_workspace_timestamp', 'workspace', 'timestamp'),
+        Index('ix_git_repo_hash', 'repo', 'commit_hash'),
+    )
 
 
 class OCRText(Base):
@@ -61,6 +80,7 @@ class OCRText(Base):
     source = Column(String(256))
     text = Column(Text)
     screenshot_path = Column(String(2048), nullable=True)
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
 
 
 class Report(Base):
@@ -72,6 +92,8 @@ class Report(Base):
     format = Column(String(16))
     path = Column(String(2048))
     summary = Column(Text)
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+    report_type = Column(String(32), nullable=True)
 
 
 # ── File Edit Journal (Solo Developer + Company Worker) ───────────────────────
@@ -90,6 +112,55 @@ class FileEdit(Base):
     event_type = Column(String(32), default='modified')
     session_date = Column(String(20))
     editor = Column(String(128), nullable=True)      # "VS Code", "PyCharm", "Cursor"
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+    # ``active_window_inference`` means this is estimated focused-window time,
+    # not proof of typing or filesystem changes.
+    source = Column(String(32), default='active_window_inference')
+    project_root = Column(String(1024), nullable=True)
+    relative_path = Column(String(2048), nullable=True)
+    extension = Column(String(32), nullable=True)
+
+    __table_args__ = (
+        Index('ix_file_edits_workspace_timestamp', 'workspace', 'timestamp'),
+        Index('ix_file_edits_path_date', 'file_path', 'session_date'),
+    )
+
+
+# ── Observed File Changes (real filesystem events) ────────────────────────────
+
+class FileChangeEvent(Base):
+    """A real filesystem event observed by the watchdog-based watcher.
+
+    This is deliberately separate from ``FileEdit`` (inferred focused-window
+    duration).  A filesystem event proves a file changed; it does not prove a
+    human typed the change.  ``application`` is only populated when there is
+    reliable evidence (for example, an editor window focused on that file).
+    """
+    __tablename__ = "file_change_events"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    workspace = Column(String(24), nullable=True, default='development', index=True)
+    event_type = Column(String(24), nullable=False)  # created/modified/deleted/moved
+    source = Column(String(32), default='filesystem')
+    attribution = Column(String(32), nullable=True)  # focused_window / none
+    application = Column(String(256), nullable=True)
+    project_root = Column(String(1024), nullable=True)
+    project = Column(String(512), nullable=True)
+    file_path = Column(String(2048), nullable=False)
+    relative_path = Column(String(2048), nullable=True)
+    file_name = Column(String(512), nullable=True)
+    extension = Column(String(32), nullable=True)
+    language = Column(String(64), nullable=True)
+    file_size = Column(Integer, nullable=True)
+    old_path = Column(String(2048), nullable=True)  # for moved/renamed events
+    session_date = Column(String(20), index=True)
+
+    __table_args__ = (
+        Index('ix_file_change_workspace_timestamp', 'workspace', 'timestamp'),
+        Index('ix_file_change_path_timestamp', 'file_path', 'timestamp'),
+        Index('ix_file_change_project', 'project'),
+    )
 
 
 # ── Search Query Tracker (Researcher Mode) ────────────────────────────────────
@@ -102,8 +173,13 @@ class SearchQuery(Base):
     query = Column(Text, nullable=False)
     source = Column(String(128))
     raw_title = Column(String(1024), nullable=True)
-    research_session_id = Column(Integer, nullable=True)
+    research_session_id = Column(Integer, nullable=True, index=True)
     bookmarked = Column(Boolean, default=False)
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_search_workspace_timestamp', 'workspace', 'timestamp'),
+    )
 
 
 class ResearchSession(Base):
@@ -117,6 +193,11 @@ class ResearchSession(Base):
     total_duration_sec = Column(Float, default=0.0)
     sources = Column(Text, nullable=True)
     date = Column(String(20))
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_research_workspace_start', 'workspace', 'start_time'),
+    )
 
 
 # ── Session Snapshot (Cross-Session Memory + AI Handoff) ──────────────────────
@@ -143,6 +224,7 @@ class SessionSnapshot(Base):
     categories_json = Column(Text, nullable=True)
     summary_text = Column(Text, nullable=True)
     ai_context_md = Column(Text, nullable=True)
+    workspace_scope = Column(String(24), default='combined')
 
 
 # ── Browser History (Real URLs from Chrome/Edge/Firefox) ──────────────────────
@@ -162,6 +244,11 @@ class BrowserHistory(Base):
     browser = Column(String(64), nullable=True)       # "Chrome", "Edge", "Firefox"
     category = Column(String(64), nullable=True)
     session_date = Column(String(20))
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_browser_workspace_timestamp', 'workspace', 'timestamp'),
+    )
 
 
 # ── Daily Notes (User-entered work log) ───────────────────────────────────────
@@ -179,6 +266,7 @@ class DailyNote(Base):
     context_data = Column(Text, nullable=True)        # JSON string of active window, branch, etc.
     screenshot_path = Column(String(2048), nullable=True) # Screenshot taken at the moment the note was made
     auto_generated = Column(Boolean, default=False)       # True for auto screen analysis notes
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
 
 
 # ── Meeting Tracker ───────────────────────────────────────────────────────────
@@ -194,6 +282,11 @@ class Meeting(Base):
     platform = Column(String(64), nullable=True)       # "Teams", "Zoom", "Meet"
     title = Column(String(1024), nullable=True)         # meeting title from window
     session_date = Column(String(20))
+    workspace = Column(String(24), nullable=True, default='company', index=True)
+
+    __table_args__ = (
+        Index('ix_meetings_workspace_start', 'workspace', 'start_time'),
+    )
 
 
 # ── AI Activity Insights (Local Summarizer) ───────────────────────────────────
@@ -212,6 +305,11 @@ class ActivityInsight(Base):
     session_date = Column(String(20))
     engagement_type = Column(String(32), nullable=True)  # "reading", "active_typing", "idle_on_tab", "browsing"
     ocr_summary = Column(String(1024), nullable=True)    # Short description from OCR text
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_insights_workspace_timestamp', 'workspace', 'timestamp'),
+    )
 
 
 # ── Screen Frame (Deduped Screenshot Storage — Recall-Like) ───────────────────
@@ -256,4 +354,11 @@ class ScreenFrame(Base):
 
     # Privacy
     privacy_scrubbed = Column(Boolean, default=False)         # True if PII was redacted
+
+    # Workspace ownership
+    workspace = Column(String(24), nullable=True, default='unclassified', index=True)
+
+    __table_args__ = (
+        Index('ix_screen_frames_workspace_timestamp', 'workspace', 'timestamp'),
+    )
 

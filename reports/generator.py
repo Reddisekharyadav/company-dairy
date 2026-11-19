@@ -1,529 +1,187 @@
-from datetime import datetime
-from database.session import SessionLocal
-from database.models import Event, GitActivity, Report
+"""Report generation entry points.
+
+The public functions keep their historical signatures while delegating to the
+shared structured model (:mod:`reports.model`) and the format renderers
+(:mod:`reports.renderers`).  ``workspace`` defaults to the safe company scope.
+"""
+from __future__ import annotations
+
 import os
-from jinja2 import Template
-from docx import Document
-from docx.shared import Pt, RGBColor
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
+from datetime import datetime
+from typing import Dict, Iterable, Optional
+
+from config.workspace_rules import normalize_scope
+from reports.model import build_report
+from reports.renderers import (
+    render_markdown,
+    write_docx,
+    write_markdown,
+    write_pdf,
+    write_text_summary,
+)
+
+__all__ = [
+    "summarize_events",
+    "generate_markdown",
+    "generate_docx",
+    "generate_pdf",
+    "generate_report",
+    "generate_recall_report",
+]
 
 
-def summarize_events(start: datetime, end: datetime, session_id: str = None) -> str:
-    session = SessionLocal()
-    
-    if session_id:
-        # ── NARRATIVE FORMAT (Session-Scoped) ──
-        from database.models import ActivityInsight, FileEdit, Meeting
-        
-        insights = session.query(ActivityInsight).filter(ActivityInsight.session_id == session_id).all()
-        files = session.query(FileEdit).filter(FileEdit.session_id == session_id).all()
-        meetings = session.query(Meeting).filter(Meeting.session_id == session_id).all()
-        commits = session.query(GitActivity).filter(GitActivity.session_id == session_id).all()
-        
-        session.close()
-
-        lines = []
-        lines.append(f"WorkSense AI Automated Standup Report")
-        lines.append(f"Session: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
-        lines.append("=" * 60)
-        
-        # 1. Topic/Insight Narrative (Enriched with OCR and Engagement)
-        topic_map = {}
-        for i in insights:
-            t = i.topic_keywords or "General Activity"
-            if t not in topic_map:
-                topic_map[t] = {'duration': 0, 'summaries': set(), 'engagements': {}}
-            topic_map[t]['duration'] += i.duration_on_tab or 0
-            
-            summary_text = getattr(i, 'ocr_summary', None) or i.summary
-            if summary_text:
-                topic_map[t]['summaries'].add(summary_text)
-                
-            eng = getattr(i, 'engagement_type', 'idle_on_tab')
-            topic_map[t]['engagements'][eng] = topic_map[t]['engagements'].get(eng, 0) + (i.duration_on_tab or 0)
-        
-        if topic_map:
-            lines.append("\n🧠 KEY TOPICS & FOCUS AREAS")
-            lines.append("-" * 40)
-            for topic, data in sorted(topic_map.items(), key=lambda x: -x[1]['duration']):
-                mins = data['duration'] / 60.0
-                if mins < 1.0: continue
-                lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
-                
-                # Show top engagements
-                if data['engagements']:
-                    eng_str = ", ".join(f"{k}: {v/60.0:.1f}m" for k, v in data['engagements'].items() if v > 60)
-                    if eng_str:
-                        lines.append(f"    - Engagement: {eng_str}")
-                
-                # Show top summaries
-                for s in list(data['summaries'])[:3]:  # Top 3 summaries
-                    lines.append(f"    - {s}")
-        
-        # 2. File Edits
-        if files:
-            lines.append("\n💻 FILES TOUCHED")
-            lines.append("-" * 40)
-            for f in sorted(files, key=lambda x: -(x.duration_sec or 0))[:10]:
-                mins = (f.duration_sec or 0) / 60.0
-                if mins > 0.5:
-                    lines.append(f"  - {f.file_name or f.file_path} ({mins:.1f} mins)")
-                    
-        # 3. Meetings
-        if meetings:
-            lines.append("\n📅 MEETINGS ATTENDED")
-            lines.append("-" * 40)
-            for m in meetings:
-                mins = (m.duration_sec or 0) / 60.0
-                lines.append(f"  - [{m.platform}] {m.title or 'Unknown Meeting'} ({mins:.1f} mins)")
-
-        # 4. Commits
-        if commits:
-            lines.append("\n🔀 CODE COMMITS")
-            lines.append("-" * 40)
-            for c in commits:
-                msg = (c.message or '').split('\n')[0]
-                lines.append(f"  - [{c.commit_hash[:7]}] {msg}")
-
-        lines.append("\n" + "=" * 60)
-        return "\n".join(lines)
-        
-    else:
-        # ── OLD CHRONOLOGICAL FORMAT (Fallback) ──
-        events = session.query(Event).filter(
-            Event.timestamp >= start, Event.timestamp <= end
-        ).order_by(Event.timestamp).all()
-    
-        git_activity = session.query(GitActivity).filter(
-            GitActivity.timestamp >= start, GitActivity.timestamp <= end
-        ).all()
-        session.close()
-    
-        lines = []
-        lines.append(f"Report: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
-        lines.append("=" * 55)
-    
-        # --- Category breakdown ---
-        cat_map = {}
-        for e in events:
-            if e.idle:
-                continue
-            cat = e.category or 'Other'
-            cat_map.setdefault(cat, 0)
-            cat_map[cat] += e.duration or 0
-    
-        total_secs = sum(cat_map.values()) or 1
-        lines.append("\n🗂  ACTIVITY CATEGORIES")
-        lines.append("-" * 30)
-        for cat, secs in sorted(cat_map.items(), key=lambda x: -x[1]):
-            pct = secs / total_secs * 100
-            hours = secs / 3600.0
-            bar = '█' * int(pct / 5)
-            lines.append(f"  {cat:<22} {hours:5.2f}h  ({pct:4.1f}%)  {bar}")
-    
-        # --- Browser History (from BrowserHistory table) ---
-        browser_lines = _get_browser_history_section(start, end)
-        if browser_lines:
-            lines.extend(browser_lines)
-
-        # --- AI Research & Study Overview ---
-        from database.models import ActivityInsight
-        session2 = SessionLocal()
-        insights = session2.query(ActivityInsight).filter(
-            ActivityInsight.timestamp >= start, ActivityInsight.timestamp <= end
-        ).all()
-        session2.close()
-
-        topic_map = {}
-        for i in insights:
-            t = i.topic_keywords or "General Activity"
-            if t not in topic_map:
-                topic_map[t] = {'duration': 0, 'summaries': set(), 'engagements': {}}
-            topic_map[t]['duration'] += i.duration_on_tab or 0
-            
-            summary_text = getattr(i, 'ocr_summary', None) or i.summary
-            if summary_text:
-                topic_map[t]['summaries'].add(summary_text)
-                
-            eng = getattr(i, 'engagement_type', 'idle_on_tab')
-            topic_map[t]['engagements'][eng] = topic_map[t]['engagements'].get(eng, 0) + (i.duration_on_tab or 0)
-        
-        if topic_map:
-            lines.append("\n🧠 AI RESEARCH & STUDY OVERVIEW")
-            lines.append("-" * 40)
-            for topic, data in sorted(topic_map.items(), key=lambda x: -x[1]['duration']):
-                mins = data['duration'] / 60.0
-                if mins < 1.0: continue
-                lines.append(f"  ■ {topic.upper()} (~{mins:.1f} mins)")
-                
-                # Show top engagements
-                if data['engagements']:
-                    eng_str = ", ".join(f"{k}: {v/60.0:.1f}m" for k, v in data['engagements'].items() if v > 60)
-                    if eng_str:
-                        lines.append(f"    - Engagement: {eng_str}")
-                        
-                for s in list(data['summaries'])[:3]:  # Top 3 lines
-                    lines.append(f"    - {s}")
-    
-        # --- Website breakdown (from Events table — fallback) ---
-        web_map = {}
-        for e in events:
-            if e.idle or not e.website:
-                continue
-            web_map.setdefault(e.website, 0)
-            web_map[e.website] += e.duration or 0
-    
-        if web_map:
-            lines.append("\n🌐  WEBSITES & APPS VISITED")
-            lines.append("-" * 30)
-            for site, secs in sorted(web_map.items(), key=lambda x: -x[1])[:15]:
-                mins = secs / 60.0
-                lines.append(f"  {site:<30} {mins:5.1f} min")
-    
-        # --- Files edited (enhanced with IDE info) ---
-        file_lines = _get_file_edits_section(start, end)
-        if file_lines:
-            lines.extend(file_lines)
-        else:
-            # Fallback to basic file tracking from Events
-            file_map = {}
-            for e in events:
-                if e.opened_file:
-                    file_map.setdefault(e.opened_file, 0)
-                    file_map[e.opened_file] += e.duration or 0
-    
-            if file_map:
-                lines.append("\n💻  FILES WORKED ON")
-                lines.append("-" * 30)
-                for fname, secs in sorted(file_map.items(), key=lambda x: -x[1])[:10]:
-                    mins = secs / 60.0
-                    lines.append(f"  {fname:<40} {mins:4.1f} min")
-    
-        # --- Git commits ---
-        if git_activity:
-            lines.append("\n🔀  GIT COMMITS")
-            lines.append("-" * 30)
-            for ga in git_activity[:10]:
-                msg = (ga.message or '').strip().split('\n')[0][:60]
-                lines.append(f"  [{ga.commit_hash[:7]}] {msg}")
-                lines.append(f"           by {ga.author}  @ {ga.timestamp.strftime('%H:%M')}")
-    
-        lines.append("\n" + "=" * 55)
-        lines.append(f"Total tracked time: {total_secs/3600:.2f} hours")
-    
-        return "\n".join(lines)
+def _build(start, end, workspace="company", session_id=None):
+    return build_report(
+        workspace,
+        start=start.isoformat() if isinstance(start, datetime) else str(start),
+        end=end.isoformat() if isinstance(end, datetime) else str(end),
+        session=None,
+        include_personal=(normalize_scope(workspace) == "all"),
+    )
 
 
-def _get_browser_history_section(start: datetime, end: datetime) -> list[str]:
-    """Generate the Browser History section from the BrowserHistory table."""
-    lines = []
-    try:
-        from database.models import BrowserHistory
-        session = SessionLocal()
-        rows = (session.query(BrowserHistory)
-                .filter(BrowserHistory.timestamp >= start,
-                        BrowserHistory.timestamp <= end)
-                .order_by(BrowserHistory.timestamp.desc())
-                .limit(50).all())
-        session.close()
+def summarize_events(start: datetime, end: datetime, session_id: str = None,
+                     workspace: str = "company", scope: str = None) -> str:
+    """Return a plain-text summary for the period.
 
-        if not rows:
-            return []
-
-        # Aggregate by domain
-        domain_map = {}  # domain → {site_name, visits, category, urls}
-        for r in rows:
-            d = r.domain or 'Unknown'
-            if d not in domain_map:
-                domain_map[d] = {
-                    'site_name': r.site_name or d,
-                    'visits': 0,
-                    'category': r.category or 'Browsing',
-                    'urls': [],
-                }
-            domain_map[d]['visits'] += 1
-            if r.url and len(domain_map[d]['urls']) < 3:
-                title = (r.title or r.url)[:50]
-                domain_map[d]['urls'].append({
-                    'title': title,
-                    'url': r.url[:80],
-                    'time': r.timestamp.strftime('%H:%M') if r.timestamp else '',
-                })
-
-        lines.append("\n🔍  BROWSER HISTORY")
-        lines.append("-" * 70)
-        lines.append(f"  {'Site':<25} {'Visits':>6}  {'Category':<20}")
-        lines.append(f"  {'─' * 25} {'─' * 6}  {'─' * 20}")
-
-        for domain, info in sorted(domain_map.items(), key=lambda x: -x[1]['visits'])[:20]:
-            name = info['site_name'][:25]
-            lines.append(f"  {name:<25} {info['visits']:>6}  {info['category']:<20}")
-            # Show up to 3 pages visited, but omit the raw URL to keep it clean
-            for u in info['urls']:
-                title = u['title'][:65]
-                lines.append(f"    └ [{u['time']}] {title}")
-
-    except Exception as e:
-        pass  # BrowserHistory table may not exist on older DBs
-    return lines
+    ``session_id`` is accepted for backwards compatibility; records are still
+    filtered by the selected workspace scope.
+    """
+    report = _build(start, end, workspace=scope or workspace)
+    return write_text_summary(report)
 
 
-def _get_file_edits_section(start: datetime, end: datetime) -> list[str]:
-    """Generate the Files Edited section from the FileEdit table with IDE info."""
-    lines = []
-    try:
-        from database.models import FileEdit
-        session = SessionLocal()
-        today = start.strftime('%Y-%m-%d')
-        rows = (session.query(FileEdit)
-                .filter(FileEdit.timestamp >= start,
-                        FileEdit.timestamp <= end)
-                .order_by(FileEdit.duration_sec.desc())
-                .limit(20).all())
-        session.close()
-
-        if not rows:
-            return []
-
-        lines.append("\n💻  FILES EDITED IN CODING")
-        lines.append("-" * 80)
-        lines.append(f"  {'File':<30} {'IDE':<14} {'Project':<16} {'Lang':<10} {'Time':>8}")
-        lines.append(f"  {'─' * 30} {'─' * 14} {'─' * 16} {'─' * 10} {'─' * 8}")
-
-        for r in rows:
-            fname = (r.file_name or r.file_path or 'unknown')[:30]
-            editor = (r.editor or '-')[:14]
-            project = (r.project or '-')[:16]
-            lang = (r.language or '-')[:10]
-            mins = (r.duration_sec or 0) / 60.0
-            time_str = f"{mins:5.1f} min"
-            lines.append(f"  {fname:<30} {editor:<14} {project:<16} {lang:<10} {time_str:>8}")
-
-    except Exception:
-        pass  # FileEdit table may not exist on older DBs
-    return lines
+def generate_markdown(start: datetime, end: datetime, out_folder: str,
+                      workspace: str = "company", session_id: str = None,
+                      scope: str = None) -> str:
+    report = _build(start, end, workspace=scope or workspace)
+    os.makedirs(out_folder, exist_ok=True)
+    return write_markdown(report, out_folder)
 
 
-def generate_markdown(start: datetime, end: datetime, out_folder: str):
-    summary = summarize_events(start, end)
-    fname = os.path.join(out_folder, f"report_{start.date()}_{end.date()}.md")
-    with open(fname, "w", encoding="utf-8") as f:
-        f.write("# WorkSense AI — Daily Activity Report\n\n")
-        f.write(f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n\n")
-        f.write("```\n")
-        f.write(summary)
-        f.write("\n```\n")
-    return fname
+def generate_docx(start: datetime, end: datetime, out_folder: str,
+                  workspace: str = "company", session_id: str = None,
+                  scope: str = None) -> str:
+    report = _build(start, end, workspace=scope or workspace)
+    os.makedirs(out_folder, exist_ok=True)
+    return write_docx(report, out_folder)
 
 
-def generate_docx(start: datetime, end: datetime, out_folder: str):
-    summary = summarize_events(start, end)
-    doc = Document()
-
-    # Title
-    title = doc.add_heading('WorkSense AI — Activity Report', level=1)
-    title.runs[0].font.color.rgb = RGBColor(0x1E, 0x90, 0xFF)
-
-    doc.add_paragraph(f"Period: {start.strftime('%Y-%m-%d %H:%M')} → {end.strftime('%Y-%m-%d %H:%M')}")
-    doc.add_paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    doc.add_paragraph()
-
-    for line in summary.split('\n'):
-        p = doc.add_paragraph(line)
-        if line.startswith('🗂') or line.startswith('🌐') or line.startswith('💻') or line.startswith('🔀') or line.startswith('🔍'):
-            p.runs[0].bold = True if p.runs else False
-
-    fname = os.path.join(out_folder, f"report_{start.date()}_{end.date()}.docx")
-    doc.save(fname)
-    return fname
+def generate_pdf(start: datetime, end: datetime, out_folder: str,
+                 workspace: str = "company", session_id: str = None,
+                 scope: str = None) -> str:
+    report = _build(start, end, workspace=scope or workspace)
+    os.makedirs(out_folder, exist_ok=True)
+    return write_pdf(report, out_folder)
 
 
-def generate_pdf(start: datetime, end: datetime, out_folder: str):
-    summary = summarize_events(start, end)
-    fname = os.path.join(out_folder, f"report_{start.date()}_{end.date()}.pdf")
-    c = canvas.Canvas(fname, pagesize=letter)
-    width, height = letter
-
-    # Header Background
-    c.setFillColor(colors.HexColor('#F8FAFC'))
-    c.rect(0, height - 100, width, 100, fill=1, stroke=0)
-    
-    # Header Accent Line
-    c.setFillColor(colors.HexColor('#3B82F6'))
-    c.rect(0, height - 100, width, 4, fill=1, stroke=0)
-
-    # Header Text
-    c.setFillColor(colors.HexColor('#0F172A'))
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(50, height - 45, "WorkSense AI Activity Report")
-    
-    c.setFillColor(colors.HexColor('#64748B'))
-    c.setFont("Helvetica", 10)
-    c.drawString(50, height - 65, f"Period: {start.strftime('%Y-%m-%d %H:%M')}  →  {end.strftime('%Y-%m-%d %H:%M')}")
-    c.drawString(50, height - 80, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-
-    y = height - 130
-    c.setFont("Courier", 9)
-    for line in summary.splitlines():
-        if y < 50:
-            c.showPage()
-            y = height - 50
-            c.setFont("Courier", 9)
-            
-        # Section headers
-        section_markers = ('🗂', '🌐', '💻', '🔀', '🔍')
-        if any(line.startswith(m) for m in section_markers):
-            y -= 10  # Extra space before section
-            c.setFont("Helvetica-Bold", 12)
-            c.setFillColor(colors.HexColor('#1E293B'))
-            # Draw a light underline
-            c.setStrokeColor(colors.HexColor('#E2E8F0'))
-            c.line(50, y - 4, width - 50, y - 4)
-        elif line.startswith('─') or line.startswith('-') or line.startswith('='):
-            # Skip drawing raw divider lines, we draw custom ones above
-            continue
-        elif "Total tracked time:" in line:
-            y -= 15
-            c.setFont("Helvetica-Bold", 14)
-            c.setFillColor(colors.HexColor('#10B981'))  # Green accent
-        else:
-            c.setFont("Courier", 9)
-            c.setFillColor(colors.HexColor('#334155'))
-
-        # Replace emojis that reportlab standard fonts can't render well
-        clean_line = line
-        for m in section_markers:
-            clean_line = clean_line.replace(m, '').strip()
-            
-        if clean_line:
-            c.drawString(50, y, clean_line.encode('ascii', 'replace').decode())
-        y -= 16
-
-    # Footer
-    c.setFont("Helvetica", 8)
-    c.setFillColor(colors.HexColor('#94A3B8'))
-    c.drawString(50, 30, "Generated automatically by WorkSense AI — 100% Offline Activity Tracking")
-    
-    c.save()
-    return fname
+def generate_report(start: datetime, end: datetime, out_folder: str,
+                    workspace: str = "company", formats: Iterable[str] = ("md", "pdf", "docx"),
+                    session_id: str = None) -> Dict[str, str]:
+    """Generate several formats from one report model and return their paths."""
+    report = _build(start, end, workspace=workspace)
+    os.makedirs(out_folder, exist_ok=True)
+    output: Dict[str, str] = {}
+    for fmt in formats:
+        fmt = str(fmt).lower().lstrip(".")
+        if fmt == "md":
+            output["md"] = write_markdown(report, out_folder)
+        elif fmt == "pdf":
+            output["pdf"] = write_pdf(report, out_folder)
+        elif fmt == "docx":
+            output["docx"] = write_docx(report, out_folder)
+    output["report"] = render_markdown(report)
+    return output
 
 
 def generate_recall_report(start: datetime, end: datetime, output_dir: str) -> str:
-    """
-    Generate an enhanced Microsoft Recall-style activity report.
-    Includes: screen analysis categories, dedup stats, topic clustering,
-    hourly activity heatmap data, and top activities per hour.
-    """
-    import json
+    """Generate a Microsoft Recall-style Markdown report (no code fences)."""
+    from database.session import SessionLocal
+
     session = SessionLocal()
-
     try:
-        from database.models import ScreenFrame, ActivityInsight
+        from database.models import ActivityInsight, ScreenFrame
 
-        # Get screen frames for the period
-        frames = (session.query(ScreenFrame)
-                  .filter(ScreenFrame.timestamp >= start,
-                          ScreenFrame.timestamp <= end,
-                          ScreenFrame.is_duplicate == False)
-                  .order_by(ScreenFrame.timestamp.asc())
-                  .all())
+        frames = (
+            session.query(ScreenFrame)
+            .filter(
+                ScreenFrame.timestamp >= start,
+                ScreenFrame.timestamp <= end,
+                ScreenFrame.is_duplicate == False,  # noqa: E712
+            )
+            .order_by(ScreenFrame.timestamp.asc())
+            .all()
+        )
 
-        # Category breakdown
         categories = {}
-        hourly_activity = {h: [] for h in range(24)}
+        hourly_activity = {hour: [] for hour in range(24)}
         topics = {}
-
-        for f in frames:
-            cat = f.detected_category or 'other'
-            categories[cat] = categories.get(cat, 0) + 1
-
-            if f.timestamp:
-                hour = f.timestamp.hour
-                hourly_activity[hour].append({
-                    'app': f.process_name,
-                    'summary': f.analysis_summary or f.window_title,
-                    'category': cat,
+        for frame in frames:
+            category = frame.detected_category or "other"
+            categories[category] = categories.get(category, 0) + 1
+            if frame.timestamp:
+                hourly_activity[frame.timestamp.hour].append({
+                    "app": frame.process_name,
+                    "summary": frame.analysis_summary or frame.window_title,
+                    "category": category,
                 })
-
-            # Extract topic keywords from OCR text
-            if f.ocr_text and len(f.ocr_text) > 50:
-                words = f.ocr_text.lower().split()
-                for word in words:
+            if frame.ocr_text and len(frame.ocr_text) > 50:
+                for word in frame.ocr_text.lower().split():
                     if len(word) > 4 and word.isalpha():
                         topics[word] = topics.get(word, 0) + 1
 
-        # Get AI insights
-        insights = (session.query(ActivityInsight)
-                    .filter(ActivityInsight.timestamp >= start,
-                            ActivityInsight.timestamp <= end)
-                    .all())
+        insights = (
+            session.query(ActivityInsight)
+            .filter(ActivityInsight.timestamp >= start, ActivityInsight.timestamp <= end)
+            .all()
+        )
+        top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)[:20]
 
-        # Sort topics by frequency
-        top_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:20]
-
-        # Build the report
-        lines = []
-        lines.append(f"# 🔍 WorkSense Recall Report")
-        lines.append(f"## Period: {start.strftime('%Y-%m-%d %H:%M')} — {end.strftime('%Y-%m-%d %H:%M')}")
-        lines.append("")
-        lines.append(f"### 📊 Screen Analysis Summary")
-        lines.append(f"- **Total unique frames captured:** {len(frames)}")
-        lines.append(f"- **Activity categories detected:** {len(categories)}")
-        lines.append("")
-
+        lines = [
+            "# WorkSense Recall Report",
+            f"## Period: {start.strftime('%Y-%m-%d %H:%M')} - {end.strftime('%Y-%m-%d %H:%M')}",
+            "",
+            "### Screen Analysis Summary",
+            f"- **Total unique frames captured:** {len(frames)}",
+            f"- **Activity categories detected:** {len(categories)}",
+            "",
+        ]
         if categories:
             lines.append("| Category | Frames | % |")
             lines.append("|:---------|-------:|--:|")
-            total = sum(categories.values())
-            for cat, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
-                pct = round(count / total * 100, 1)
-                lines.append(f"| {cat} | {count} | {pct}% |")
+            total = sum(categories.values()) or 1
+            for category, count in sorted(categories.items(), key=lambda item: item[1], reverse=True):
+                lines.append(f"| {category} | {count} | {round(count / total * 100, 1)}% |")
             lines.append("")
 
-        # Hourly activity heatmap
-        lines.append("### ⏰ Hourly Activity")
+        lines.append("### Hourly Activity")
         lines.append("")
         for hour in range(24):
             activities = hourly_activity[hour]
             if activities:
-                count = len(activities)
-                bar = "█" * min(count, 20)
-                top_app = max(set(a['app'] for a in activities),
-                             key=lambda x: sum(1 for a in activities if a['app'] == x))
-                lines.append(f"  {hour:02d}:00  {bar} ({count} frames) — {top_app}")
+                top_app = max(
+                    set(activity["app"] for activity in activities),
+                    key=lambda app: sum(1 for activity in activities if activity["app"] == app),
+                )
+                lines.append(f"  {hour:02d}:00  {'#' * min(len(activities), 20)} ({len(activities)} frames) - {top_app}")
         lines.append("")
 
-        # Top topics
         if top_topics:
-            lines.append("### 🏷️ Top Topics Detected")
+            lines.append("### Top Topics Detected")
             for word, count in top_topics:
                 lines.append(f"  - **{word}** ({count} mentions)")
             lines.append("")
 
-        # AI Insights summary
         if insights:
-            lines.append(f"### 🧠 AI Activity Insights ({len(insights)} total)")
-            for ins in insights[:15]:
-                emoji = {'reading': '📖', 'active_typing': '⌨️',
-                         'browsing': '🌐', 'idle_on_tab': '💤'}.get(
-                    ins.engagement_type or '', '📋')
-                lines.append(f"  {emoji} {ins.summary or 'N/A'}")
+            lines.append(f"### AI Activity Insights ({len(insights)} total)")
+            for insight in insights[:15]:
+                lines.append(f"  - {insight.summary or 'N/A'}")
             lines.append("")
 
-        report_text = "\n".join(lines)
-
-        # Save as Markdown
-        date_str = start.strftime('%Y%m%d')
-        fname = os.path.join(output_dir, f'recall_report_{date_str}.md')
-        with open(fname, 'w', encoding='utf-8') as f:
-            f.write(report_text)
-
-        return fname
-
-    except ImportError as e:
-        # ScreenFrame model not available — return basic report
-        return summarize_events(start, end)
+        os.makedirs(output_dir, exist_ok=True)
+        path = os.path.join(output_dir, f"recall_report_{start.strftime('%Y%m%d')}.md")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines))
+        return path
     finally:
         session.close()

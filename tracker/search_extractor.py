@@ -13,6 +13,14 @@ from typing import Optional, Tuple
 
 log = logging.getLogger('search_extractor')
 
+
+def _classify_search(source: str, query: str, raw_title: str) -> str:
+    try:
+        from config.workspace_rules import classifier
+        return classifier.classify_search(source, query, raw_title)
+    except Exception:
+        return 'unclassified'
+
 # Source patterns: (source_name, [title_patterns])
 SEARCH_SOURCES = [
     ('Google',     [r'^(.+?)\s*[-–—]\s*Google Search', r'^(.+?)\s*[-–—]\s*Google']),
@@ -104,14 +112,16 @@ class SearchExtractor:
                                 self._last_query = query
                                 now = datetime.now()
                                 session_id = self._get_or_create_session(
-                                    session, now, source
+                                    session, now, source, query, title
                                 )
                                 sq = SearchQuery(
+                                    timestamp=now,
                                     query=query,
                                     source=source,
                                     raw_title=title[:1024],
                                     research_session_id=session_id,
                                     bookmarked=False,
+                                    workspace=_classify_search(source, query, title),
                                 )
                                 session.add(sq)
                                 # Update session query count
@@ -137,7 +147,8 @@ class SearchExtractor:
         finally:
             session.close()
 
-    def _get_or_create_session(self, session, now: datetime, source: str) -> int:
+    def _get_or_create_session(self, session, now: datetime, source: str,
+                               query: str = "", raw_title: str = "") -> int:
         """Return current research session id, or create a new one if gap exceeded."""
         from database.models import ResearchSession
         import json
@@ -157,6 +168,7 @@ class SearchExtractor:
             query_count=0,
             total_duration_sec=0.0,
             sources=json.dumps([source]),
+            workspace=_classify_search(source, query, raw_title),
         )
         session.add(rs)
         session.flush()  # get the ID
@@ -166,22 +178,26 @@ class SearchExtractor:
 
     # ── Public API helpers ────────────────────────────────────────────────────
 
-    def get_today_queries(self, limit: int = 50) -> list[dict]:
+    def get_today_queries(self, limit: int = 50, workspace: str | None = None) -> list[dict]:
         """Return today's search queries for the Research tab."""
         try:
             from database.session import SessionLocal
             from database.models import SearchQuery
+            from config.workspace_rules import scope_workspaces
             today = datetime.now().strftime('%Y-%m-%d')
             session = SessionLocal()
             try:
-                rows = (session.query(SearchQuery)
-                        .filter(SearchQuery.timestamp >= datetime.strptime(today, '%Y-%m-%d'))
-                        .order_by(SearchQuery.timestamp.desc())
+                query = session.query(SearchQuery).filter(
+                    SearchQuery.timestamp >= datetime.strptime(today, '%Y-%m-%d'))
+                if workspace:
+                    query = query.filter(SearchQuery.workspace.in_(scope_workspaces(workspace)))
+                rows = (query.order_by(SearchQuery.timestamp.desc())
                         .limit(limit).all())
                 return [{
                     'id': r.id,
                     'query': r.query,
                     'source': r.source,
+                    'workspace': r.workspace,
                     'timestamp': r.timestamp.isoformat() if r.timestamp else None,
                     'session_id': r.research_session_id,
                     'bookmarked': r.bookmarked,
@@ -192,18 +208,20 @@ class SearchExtractor:
             log.warning('get_today_queries error: %s', e)
             return []
 
-    def get_research_sessions(self, days: int = 7) -> list[dict]:
+    def get_research_sessions(self, days: int = 7, workspace: str | None = None) -> list[dict]:
         """Return research sessions for the last N days."""
         try:
             from database.session import SessionLocal
             from database.models import ResearchSession, SearchQuery
+            from config.workspace_rules import scope_workspaces
             import json
             since = datetime.now() - timedelta(days=days)
             session = SessionLocal()
             try:
-                rows = (session.query(ResearchSession)
-                        .filter(ResearchSession.start_time >= since)
-                        .order_by(ResearchSession.start_time.desc())
+                query = session.query(ResearchSession).filter(ResearchSession.start_time >= since)
+                if workspace:
+                    query = query.filter(ResearchSession.workspace.in_(scope_workspaces(workspace)))
+                rows = (query.order_by(ResearchSession.start_time.desc())
                         .limit(50).all())
                 result = []
                 for r in rows:

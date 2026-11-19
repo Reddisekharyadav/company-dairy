@@ -159,6 +159,8 @@ class StatusWidget:
         self._minimized         = False
         self._running           = False
         self._lock              = threading.Lock()
+        self._tk_thread_id      = None
+        self._quit_requested    = threading.Event()
 
         # report period state
         self._period_var        = None   # tk.StringVar
@@ -210,6 +212,7 @@ class StatusWidget:
     def start(self):
         """Build and run the widget (blocking — run in its own thread)."""
         self._running = True
+        self._tk_thread_id = threading.get_ident()
         try:
             self._root = tk.Tk()
             self._build_pill()
@@ -221,12 +224,27 @@ class StatusWidget:
             self._running = False
 
     def destroy(self):
+        """Request widget shutdown without touching Tk from another thread.
+
+        Tkinter must only be called from the thread that created the Tk root.
+        The tray menu callback runs on the pystray message-loop thread, so a
+        direct ``root.destroy()`` there can deadlock the process during Exit.
+        """
+        if threading.get_ident() == self._tk_thread_id:
+            self._destroy_from_tk()
+        else:
+            self._quit_requested.set()
+
+    def _destroy_from_tk(self):
+        self._quit_requested.clear()
         if self._panel_win:
             try: self._panel_win.destroy()
             except Exception: pass
+            self._panel_win = None
         if self._root:
             try: self._root.destroy()
             except Exception: pass
+            self._root = None
 
     # ── PILL ─────────────────────────────────────────────────────────────────
 
@@ -646,6 +664,9 @@ class StatusWidget:
 
     def _tick(self):
         """Update timer label every second."""
+        if self._quit_requested.is_set():
+            self._destroy_from_tk()
+            return
         try:
             secs   = int(self.get_elapsed())
             h, rem = divmod(secs, 3600)

@@ -37,7 +37,19 @@ class OCRWorker:
                     hwnd = ImageGrab.grab()
                     text = pytesseract.image_to_string(hwnd)
                     if text and text.strip():
-                        o = OCRText(timestamp=datetime.now(), source=title or proc or 'unknown', text=text)
+                        try:
+                            from config.workspace_rules import classifier
+                            workspace = classifier.classify_application(
+                                process=proc or '', title=title or ''
+                            )
+                        except Exception:
+                            workspace = 'unclassified'
+                        o = OCRText(
+                            timestamp=datetime.now(),
+                            source=title or proc or 'unknown',
+                            text=text,
+                            workspace=workspace,
+                        )
                         session.add(o)
                         session.commit()
                 except Exception as e:

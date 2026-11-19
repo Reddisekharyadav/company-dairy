@@ -107,11 +107,18 @@ class MeetingTracker:
 
                     if platform and self._current_meeting is None:
                         # Meeting started
+                        from config.workspace_rules import classifier
                         self._current_meeting = {
                             'platform': platform,
                             'title': _extract_meeting_title(title, platform),
                             'start_time': datetime.now(),
+                            'workspace': classifier.classify_application(
+                                process=proc or '', title=title or ''
+                            ),
                         }
+                        if self._current_meeting['workspace'] == 'unclassified':
+                            # A detected meeting is conservative company evidence.
+                            self._current_meeting['workspace'] = 'company'
                         log.info('Meeting started: %s — %s',
                                  platform, self._current_meeting['title'])
 
@@ -134,7 +141,8 @@ class MeetingTracker:
                                 platform=self._current_meeting['platform'],
                                 title=self._current_meeting['title'],
                                 session_date=self._current_meeting['start_time'].strftime('%Y-%m-%d'),
-                                session_id=SESSION_ID
+                                session_id=SESSION_ID,
+                                workspace=self._current_meeting.get('workspace', 'company'),
                             )
                             session.add(m)
                             session.commit()
@@ -166,7 +174,8 @@ class MeetingTracker:
                             platform=self._current_meeting['platform'],
                             title=self._current_meeting['title'],
                             session_date=self._current_meeting['start_time'].strftime('%Y-%m-%d'),
-                            session_id=SESSION_ID
+                            session_id=SESSION_ID,
+                            workspace=self._current_meeting.get('workspace', 'company'),
                         )
                         session.add(m)
                         session.commit()

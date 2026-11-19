@@ -13,14 +13,24 @@ venv/
 dist/
 build/
 *.spec~
+*.exe
 
 # Secrets
 .env
+.env.*
+!.env.example
 
 # Database (local data)
 database/events.db
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+backups/
 exports/
 reports/__pycache__/
+test-artifacts/
 
 # Screenshots (private)
 screenshots/

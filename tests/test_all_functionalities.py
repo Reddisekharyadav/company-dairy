@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from database.session import init_db, SessionLocal
-from database.models import Event, GitActivity, OCRText
+from database.models import Event, GitActivity, OCRText, ResearchSession
 from tracker.tracker import ActivityTracker
 from tracker.categorizer import categorize_activity, extract_website_name
 from tracker.git_watcher import GitWatcher
@@ -111,6 +111,17 @@ def test_desktop_output_directory_resolution():
     assert desktop.exists()
 
 
+def test_backend_wires_active_window_provider_for_editor_attribution():
+    """The packaged app must pass the real foreground provider to the watcher.
+
+    A missing provider silently disables editor attribution even when the
+    foreground editor title contains the changed file name.
+    """
+    from tracker.active_window import get_active_window
+
+    assert backend_app.fs_watcher._active_window_provider is get_active_window
+
+
 def test_fastapi_backend_endpoints_directly():
     # 1. Index route
     html_res = backend_app.index()
@@ -161,3 +172,26 @@ def test_fastapi_backend_endpoints_directly():
     # 9. Screenshots endpoint
     screenshots_res = backend_app.api_screenshots(limit=5)
     assert isinstance(json.loads(screenshots_res.body), list)
+
+
+def test_malformed_research_sources_do_not_break_endpoint():
+    """A legacy row with non-JSON sources must not turn the Research tab into a 500."""
+    session = SessionLocal()
+    now = datetime.now()
+    session.add(ResearchSession(
+        start_time=now,
+        end_time=now,
+        topic_label="Legacy import",
+        query_count=1,
+        total_duration_sec=60,
+        sources="Google, SharePoint",
+        date=now.strftime("%Y-%m-%d"),
+        workspace="company",
+    ))
+    session.commit()
+    session.close()
+
+    response = backend_app.api_research_sessions(days=7, workspace="company")
+    body = json.loads(response.body)
+    assert response.status_code == 200
+    assert body[0]["sources"] == []

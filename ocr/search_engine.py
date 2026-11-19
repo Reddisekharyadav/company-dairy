@@ -6,6 +6,9 @@ import logging
 import json
 import struct
 import re
+import sqlite3
+import contextlib
+from threading import Thread
 from typing import List, Dict, Any
 from sqlalchemy import text
 from database.session import SessionLocal
@@ -15,24 +18,58 @@ log = logging.getLogger('search_engine')
 class SearchEngine:
     def __init__(self):
         self._model = None
+        self._fallback = None
         self._is_loaded = False
-        
+        self._loading = False
+        self._load_thread = None
+
     def _lazy_load(self):
-        if self._is_loaded:
+        """Start loading the model in the background.
+
+        Screenshot capture must never wait for a model download.  Until the
+        model is ready, ``encode`` returns an empty vector and search falls back
+        to FTS5 keyword matching.
+        """
+        if self._is_loaded or self._loading:
             return
-        self._is_loaded = True
+        self._loading = True
+
+        def _load():
+            try:
+                log.info("Loading sentence-transformers embedding model in background...")
+                from sentence_transformers import SentenceTransformer
+                # all-MiniLM-L6-v2 outputs 384-dimensional vectors
+                self._model = SentenceTransformer('all-MiniLM-L6-v2')
+                log.info("Embedding model loaded.")
+            except ImportError:
+                log.warning("sentence_transformers not installed; using SimpleEmbedding fallback.")
+                self._fallback = self._make_fallback()
+            except Exception as e:
+                log.error("Failed to load sentence-transformers: %s", e)
+                self._fallback = self._make_fallback()
+            finally:
+                self._is_loaded = True
+                self._loading = False
+
+        self._load_thread = Thread(target=_load, daemon=True, name="embedding-loader")
+        self._load_thread.start()
+
+    @staticmethod
+    def _make_fallback():
         try:
-            log.info("Loading sentence-transformers embedding model...")
-            from sentence_transformers import SentenceTransformer
-            # all-MiniLM-L6-v2 outputs 384-dimensional vectors
-            self._model = SentenceTransformer('all-MiniLM-L6-v2')
-            log.info("Embedding model loaded.")
-        except Exception as e:
-            log.error("Failed to load sentence-transformers: %s", e)
-            
+            from ocr.embeddings import SimpleEmbedding
+            return SimpleEmbedding()
+        except Exception as fallback_error:
+            log.error("SimpleEmbedding fallback failed: %s", fallback_error)
+            return None
+
     def encode(self, text_str: str) -> List[float]:
         self._lazy_load()
-        if not self._model or not text_str:
+        if not text_str:
+            return []
+        if self._fallback is not None:
+            return self._fallback.encode(text_str)
+        if not self._model:
             return []
         try:
             vector = self._model.encode(text_str)
@@ -188,5 +225,91 @@ class SearchEngine:
             return []
         finally:
             session.close()
+
+
+class HybridSearchEngine:
+    """Standalone hybrid search engine over a caller-supplied SQLite database.
+
+    This is the original v4.0 API, kept for backward compatibility with scripts
+    and tests that manage their own database instead of the application's
+    global session. New code should prefer :class:`SearchEngine`.
+    """
+
+    def __init__(self, db_path: str):
+        self.db_path = str(db_path)
+
+    @contextlib.contextmanager
+    def _connect(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    def setup_fts5(self) -> None:
+        """Create the FTS5 index used for keyword search."""
+        with self._connect() as conn:
+            conn.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS screen_frames_fts "
+                "USING fts5(ocr_text, window_title, analysis_summary)"
+            )
+
+    def index_frame(self, frame_id: int, ocr_text: str = "",
+                    window_title: str = "", analysis_summary: str = "") -> None:
+        """Add or update a frame in the keyword index."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM screen_frames_fts WHERE rowid = ?", (frame_id,))
+            conn.execute(
+                "INSERT INTO screen_frames_fts(rowid, ocr_text, window_title, analysis_summary) "
+                "VALUES (?, ?, ?, ?)",
+                (frame_id, ocr_text or "", window_title or "", analysis_summary or ""),
+            )
+
+    @staticmethod
+    def _fts_query(query: str) -> str:
+        words = [w for w in re.findall(r"\w+", query or "") if w]
+        return " OR ".join(f'"{w}"*' for w in words)
+
+    def search_keyword(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Full-text keyword search using FTS5 (BM25 ranking)."""
+        match = self._fts_query(query)
+        if not match:
+            return []
+        try:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT rowid AS id, ocr_text, window_title, analysis_summary, "
+                    "bm25(screen_frames_fts) AS rank "
+                    "FROM screen_frames_fts WHERE screen_frames_fts MATCH ? "
+                    "ORDER BY rank LIMIT ?",
+                    (match, limit),
+                ).fetchall()
+                return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            log.debug("FTS5 keyword search failed: %s", exc)
+            return []
+
+    def search_hybrid(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Keyword search with a LIKE fallback when FTS returns nothing."""
+        results = self.search_keyword(query, limit=limit)
+        if results or not (query or "").strip():
+            return results
+        like_term = f"%{query}%"
+        try:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, ocr_text, window_title, analysis_summary "
+                    "FROM screen_frames "
+                    "WHERE ocr_text LIKE ? OR window_title LIKE ? "
+                    "OR analysis_summary LIKE ? LIMIT ?",
+                    (like_term, like_term, like_term, limit),
+                ).fetchall()
+                return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            log.debug("LIKE fallback search failed: %s", exc)
+            return []
+
 
 search_engine = SearchEngine()

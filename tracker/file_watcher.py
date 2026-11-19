@@ -1,334 +1,405 @@
+"""Estimated focused-window file time.
+
+This module complements :mod:`tracker.fs_watcher`.
+
+* ``fs_watcher`` observes **real filesystem changes** (including background
+  agents, terminals and CI tools) and writes :class:`database.models.FileChangeEvent`.
+* this module estimates how long an editor window with a file open stayed
+  focused and writes :class:`database.models.FileEdit` with
+  ``source='active_window_inference'``.
+
+A focused editor window is **not** proof that a human typed.  The duration is an
+estimate; callers must label it as such.
 """
-File Edit Watcher â€” tracks which files are being modified across project roots.
-Uses watchdog for filesystem events + active-window polling to measure time-per-file.
-Stores results in FileEdit table for the Dev Files tab and AI context export.
-"""
-import os
-import time
+from __future__ import annotations
+
 import logging
+import os
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from config.settings import SESSION_ID
 
-log = logging.getLogger('file_watcher')
+from config.settings import SESSION_ID, settings
+from config.workspace_rules import classifier, normalize_workspace
+from tracker.file_types import (
+    EXT_LANG_MAP,
+    IDE_PROCESS_MAP,
+    TRACKED_EXTENSIONS,
+    detect_ide,
+    get_language,
+)
 
-# File extensions we care about (developer files)
-TRACKED_EXTENSIONS = {
-    '.py', '.js', '.ts', '.tsx', '.jsx', '.java', '.c', '.cpp', '.cs',
-    '.go', '.rb', '.php', '.rs', '.swift', '.kt', '.vue', '.svelte',
-    '.html', '.css', '.scss', '.sass', '.less',
-    '.json', '.yaml', '.yml', '.toml', '.xml',
-    '.md', '.mdx', '.rst', '.txt',
-    '.sql', '.sh', '.bash', '.ps1', '.bat',
-    '.dockerfile', '.tf', '.hcl', '.ipynb',
-}
+log = logging.getLogger("file_watcher")
 
-EXT_LANG_MAP = {
-    '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
-    '.tsx': 'TypeScript/React', '.jsx': 'JavaScript/React',
-    '.java': 'Java', '.c': 'C', '.cpp': 'C++', '.cs': 'C#',
-    '.go': 'Go', '.rb': 'Ruby', '.php': 'PHP', '.rs': 'Rust',
-    '.swift': 'Swift', '.kt': 'Kotlin', '.vue': 'Vue',
-    '.svelte': 'Svelte', '.html': 'HTML', '.css': 'CSS',
-    '.scss': 'SCSS', '.sass': 'Sass', '.less': 'Less',
-    '.sql': 'SQL', '.sh': 'Shell', '.ps1': 'PowerShell',
-    '.md': 'Markdown', '.json': 'JSON', '.yaml': 'YAML',
-    '.yml': 'YAML', '.toml': 'TOML', '.tf': 'Terraform',
-    '.ipynb': 'Jupyter Notebook',
-}
-
-# Process name â†’ IDE display name
-IDE_PROCESS_MAP = {
-    'code': 'VS Code',
-    'code.exe': 'VS Code',
-    'code - insiders': 'VS Code Insiders',
-    'cursor': 'Cursor',
-    'cursor.exe': 'Cursor',
-    'pycharm': 'PyCharm',
-    'pycharm64.exe': 'PyCharm',
-    'pycharm.exe': 'PyCharm',
-    'idea': 'IntelliJ IDEA',
-    'idea64.exe': 'IntelliJ IDEA',
-    'idea.exe': 'IntelliJ IDEA',
-    'webstorm': 'WebStorm',
-    'webstorm64.exe': 'WebStorm',
-    'rider': 'Rider',
-    'rider64.exe': 'Rider',
-    'clion': 'CLion',
-    'clion64.exe': 'CLion',
-    'goland': 'GoLand',
-    'goland64.exe': 'GoLand',
-    'rubymine': 'RubyMine',
-    'rubymine64.exe': 'RubyMine',
-    'phpstorm': 'PhpStorm',
-    'phpstorm64.exe': 'PhpStorm',
-    'sublime_text': 'Sublime Text',
-    'sublime_text.exe': 'Sublime Text',
-    'atom': 'Atom',
-    'atom.exe': 'Atom',
-    'notepad++': 'Notepad++',
-    'notepad++.exe': 'Notepad++',
-    'vim': 'Vim',
-    'nvim': 'Neovim',
-    'nvim.exe': 'Neovim',
-    'emacs': 'Emacs',
-    'notepad': 'Notepad',
-    'notepad.exe': 'Notepad',
-    'antigravity': 'Antigravity IDE',
-    'antigravity.exe': 'Antigravity IDE',
-    'fleet': 'Fleet',
-    'fleet.exe': 'Fleet',
-    'zed': 'Zed',
-    'zed.exe': 'Zed',
-}
+# Backwards-compatible aliases (older integrations imported these names).
+__all__ = [
+    "TRACKED_EXTENSIONS",
+    "EXT_LANG_MAP",
+    "IDE_PROCESS_MAP",
+    "FileEditWatcher",
+]
 
 
 def _get_language(file_path: str) -> Optional[str]:
-    ext = Path(file_path).suffix.lower()
-    return EXT_LANG_MAP.get(ext)
+    return get_language(file_path)
+
+
+def _get_project_root(file_path: str) -> Optional[str]:
+    """Return the nearest project root containing a known marker."""
+    try:
+        current = Path(file_path).resolve().parent
+    except Exception:
+        current = Path(file_path).parent
+    markers = (
+        ".git", "pyproject.toml", "package.json", "Cargo.toml", "go.mod",
+        "pom.xml", "build.gradle", "requirements.txt", "setup.py",
+    )
+    for _ in range(10):
+        try:
+            if any((current / marker).exists() for marker in markers):
+                return str(current)
+        except OSError:
+            pass
+        if current.parent == current:
+            break
+        current = current.parent
+    return None
 
 
 def _get_project_name(file_path: str) -> Optional[str]:
-    """Walk up the directory tree to find the project root (contains .git or pyproject.toml)."""
-    p = Path(file_path).parent
-    for _ in range(6):  # max 6 levels up
-        markers = ['.git', 'pyproject.toml', 'package.json', 'Cargo.toml', 'go.mod']
-        for marker in markers:
-            if (p / marker).exists():
-                return p.name
-        if p.parent == p:
-            break
-        p = p.parent
+    root = _get_project_root(file_path)
+    if root:
+        return Path(root).name
     return None
 
 
 def _detect_ide(proc_name: str) -> Optional[str]:
-    """Map a process name to a human-readable IDE name."""
-    if not proc_name:
-        return None
-    proc_lower = proc_name.lower().strip()
-    # Direct match
-    if proc_lower in IDE_PROCESS_MAP:
-        return IDE_PROCESS_MAP[proc_lower]
-    # Partial match for common patterns
-    for key, name in IDE_PROCESS_MAP.items():
-        if key in proc_lower:
-            return name
-    return None
+    return detect_ide(proc_name)
 
 
 class FileEditWatcher:
-    """
-    Watches project root directories for file modification events.
-    Records each edit to the FileEdit table.
-    Also tracks time-in-file by watching the active window title.
-    """
+    """Poll the active window and estimate focused time per open file."""
 
-    def __init__(self, roots=None, interval: float = 5.0):
-        from config.settings import settings
-        self.roots = roots or settings.project_roots
-        self.interval = interval
+    def __init__(self, roots=None, interval: float = 5.0, workspace: Optional[str] = None):
+        self.roots = [str(r) for r in (roots or settings.project_roots) if str(r).strip()]
+        self.interval = max(1.0, float(interval))
+        self.workspace = normalize_workspace(workspace, "development") if workspace else None
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True, name='FileEditWatcher')
-        self._recent_files: dict[str, float] = {}  # path â†’ last seen timestamp
+        self._lock = threading.Lock()
+        self._thread = threading.Thread(target=self._run, daemon=True, name="FileEditWatcher")
+        self._file_durations: dict[str, float] = {}
+        self._file_editors: dict[str, str] = {}
+        self._last_error: Optional[str] = None
+        self._running = False
 
-    def start(self):
+    # ── lifecycle ────────────────────────────────────────────────────────
+    def start(self) -> bool:
         self._stop.clear()
-        if not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._run, daemon=True, name='FileEditWatcher')
+        with self._lock:
+            if self._thread.is_alive():
+                self._running = True
+                return True
+            self._thread = threading.Thread(target=self._run, daemon=True, name="FileEditWatcher")
             self._thread.start()
-        log.info('FileEditWatcher started, watching: %s', self.roots)
+            self._running = True
+        log.info("FileEditWatcher started, watching: %s", self.roots)
+        return True
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=3.0)
+        thread = self._thread
+        if thread.is_alive():
+            thread.join(timeout=3.0)
+        self._running = False
 
-    def get_recent_files(self, limit: int = 20) -> list[dict]:
-        """Return recently edited files from DB (for API)."""
+    def set_roots(self, roots) -> None:
+        self.roots = [str(r) for r in (roots or []) if str(r).strip()]
+
+    def get_status(self) -> dict:
+        return {
+            "running": self._running,
+            "roots": list(self.roots),
+            "interval_seconds": self.interval,
+            "last_error": self._last_error,
+            "source": "active_window_inference",
+        }
+
+    # ── queries ──────────────────────────────────────────────────────────
+    def get_recent_files(self, limit: int = 20, workspace: Optional[str] = None) -> list[dict]:
+        """Return recent inferred file durations from the database."""
         try:
-            from database.session import SessionLocal
             from database.models import FileEdit
+            from database.session import SessionLocal
+
             session = SessionLocal()
             try:
-                rows = (session.query(FileEdit)
-                        .order_by(FileEdit.timestamp.desc())
-                        .limit(limit).all())
+                query = session.query(FileEdit)
+                if workspace:
+                    query = query.filter(FileEdit.workspace == normalize_workspace(workspace))
+                rows = query.order_by(FileEdit.timestamp.desc()).limit(max(1, min(limit, 500))).all()
                 result = []
                 seen = set()
-                for r in rows:
-                    key = r.file_path
+                for row in rows:
+                    key = row.file_path or row.file_name
                     if key in seen:
                         continue
                     seen.add(key)
                     result.append({
-                        'file': r.file_name,
-                        'path': r.file_path,
-                        'project': r.project,
-                        'language': r.language,
-                        'duration_sec': r.duration_sec,
-                        'editor': r.editor,
-                        'timestamp': r.timestamp.isoformat() if r.timestamp else None,
-                        'date': r.session_date,
+                        "file": row.file_name,
+                        "path": row.file_path,
+                        "project": row.project,
+                        "language": row.language,
+                        "duration_sec": row.duration_sec,
+                        "editor": row.editor,
+                        "workspace": row.workspace or "unclassified",
+                        "source": row.source or "active_window_inference",
+                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                        "date": row.session_date,
                     })
                 return result
             finally:
                 session.close()
-        except Exception as e:
-            log.warning('get_recent_files error: %s', e)
+        except Exception as exc:
+            log.warning("get_recent_files error: %s", exc)
             return []
 
-    def _run(self):
-        """Poll active window every N seconds and record file edits."""
-        from database.session import SessionLocal
+    # ── worker ───────────────────────────────────────────────────────────
+    def _run(self) -> None:
         from database.models import FileEdit
+        from database.session import SessionLocal
         from tracker.active_window import get_active_window
-        import re
 
         session = SessionLocal()
-        _file_durations: dict[str, float] = {}  # path â†’ accumulated seconds
-        _file_editors: dict[str, str] = {}  # path â†’ IDE name
-
+        last_flush: dict[str, float] = {}
         try:
             while not self._stop.is_set():
                 try:
                     proc, title = get_active_window()
                     if title:
-                        file_info = self._extract_file_info(proc or '', title)
-                        if file_info:
-                            file_path, project, editor = file_info
-                            print(f"FileEditWatcher extracted: path={file_path}, proj={project}, editor={editor}", flush=True)
-                            _file_durations[file_path] = _file_durations.get(file_path, 0) + self.interval
-                            if editor:
-                                _file_editors[file_path] = editor
-                            # Write to DB every 30 seconds per file to reduce churn
-                            if _file_durations[file_path] % 30 < self.interval + 1:
-                                self._record_edit(
-                                    session, file_path, _file_durations[file_path],
-                                    project=project,
-                                    editor=_file_editors.get(file_path),
+                        info = self._extract_file_info(proc or "", title)
+                        if info:
+                            file_path, project, editor = info
+                            with self._lock:
+                                self._file_durations[file_path] = (
+                                    self._file_durations.get(file_path, 0.0) + self.interval
                                 )
-                except Exception as e:
-                    log.debug('FileEditWatcher tick error: %s', e)
-                time.sleep(self.interval)
-        except Exception as e:
-            log.exception('FileEditWatcher error: %s', e)
+                                duration = self._file_durations[file_path]
+                                if editor:
+                                    self._file_editors[file_path] = editor
+                            # Flush every 30 seconds of accumulated focused time.
+                            if duration - last_flush.get(file_path, 0.0) >= 30.0:
+                                last_flush[file_path] = duration
+                                self._record_edit(
+                                    session,
+                                    file_path,
+                                    duration,
+                                    project=project,
+                                    editor=self._file_editors.get(file_path),
+                                    proc=proc or "",
+                                    title=title,
+                                )
+                except Exception as exc:  # pragma: no cover - defensive
+                    self._last_error = str(exc)
+                    log.debug("FileEditWatcher tick error: %s", exc)
+                self._stop.wait(self.interval)
+        except Exception as exc:  # pragma: no cover - defensive
+            self._last_error = str(exc)
+            log.exception("FileEditWatcher error: %s", exc)
         finally:
             session.close()
 
+    def _resolve_project_file(
+        self, candidate: str, project_hint: Optional[str] = None
+    ) -> tuple[str, Optional[str]]:
+        """Resolve an editor title's file name against configured project roots.
+
+        Editor titles usually contain only a base name (``app.py``), so the
+        absolute path and the real project folder must be recovered from the
+        watched roots.  Without this, FileEdit rows are stored as ``app.py``
+        with the editor name as the project.
+
+        If the same base name exists in more than one watched root and the title
+        does not identify the project, the path is intentionally left
+        unresolved instead of guessing the first root.  A wrong project is worse
+        than an explicitly ambiguous row.
+        """
+        if os.path.isabs(candidate):
+            try:
+                if os.path.isfile(candidate):
+                    return os.path.abspath(candidate), _get_project_name(candidate)
+            except OSError:
+                pass
+            return candidate, None
+
+        matches: list[tuple[str, str]] = []
+        for root in self.roots:
+            try:
+                root_path = Path(root).resolve()
+                possible = (root_path / candidate).resolve()
+                if possible.is_file() and possible.is_relative_to(root_path):
+                    matches.append((str(possible), root_path.name))
+            except (OSError, ValueError):
+                continue
+
+        if not matches:
+            return candidate, None
+
+        if project_hint:
+            hint = project_hint.strip().lower()
+            preferred = [
+                match for match in matches
+                if match[1].lower() == hint
+                or Path(match[0]).parent.name.lower() == hint
+            ]
+            if len(preferred) == 1:
+                return preferred[0]
+
+        if len(matches) == 1:
+            return matches[0]
+        return candidate, None
+
+    def _project_root_for_path(self, file_path: str) -> Optional[str]:
+        if not os.path.isabs(file_path):
+            return None
+        try:
+            resolved = Path(file_path).resolve()
+        except OSError:
+            return None
+        for root in self.roots:
+            try:
+                root_path = Path(root).resolve()
+                if resolved.is_relative_to(root_path):
+                    return str(root_path)
+            except (OSError, ValueError):
+                continue
+        return _get_project_root(file_path)
+
     def _extract_file_info(self, proc: str, title: str) -> Optional[tuple[str, Optional[str], Optional[str]]]:
-        """
-        Extract (file_path, project_name, ide_name) from IDE window title.
-        Returns None if not an IDE or no file detected.
-        """
-        import re
-        proc_lower = proc.lower()
+        """Extract ``(file_path, project, ide)`` from an IDE window title."""
         if not title:
             return None
-            
-        print(f"FileEditWatcher sees proc={proc}, title={title}", flush=True)
+        title_lower = title.lower()
 
-        # Check if this is an IDE process (by process name or title fallback)
-        ide_procs = ('code', 'pycharm', 'cursor', 'idea', 'webstorm', 'rider',
-                     'vim', 'nvim', 'sublime', 'notepad', 'atom', 'clion',
-                     'goland', 'rubymine', 'phpstorm', 'fleet', 'zed',
-                     'antigravity', 'emacs')
-        if not any(k in proc_lower for k in ide_procs) and not any(k in title.lower() for k in ide_procs):
-            return None
-
-        # Detect IDE name
         editor = _detect_ide(proc)
         if not editor:
-            for k, name in IDE_PROCESS_MAP.items():
-                if k in title.lower():
+            for key, name in IDE_PROCESS_MAP.items():
+                if len(key) >= 5 and key in title_lower:
                     editor = name
                     break
+        if not editor:
+            return None
 
-        # Normalize dashes
-        nt = title.replace('\u2014', ' - ').replace('\u2013', ' - ')
-        parts = [p.strip() for p in nt.split(' - ') if p.strip()]
+        normalised = title.replace("\u2014", " - ").replace("\u2013", " - ")
+        parts = [part.strip() for part in normalised.split(" - ") if part.strip()]
         if not parts:
             return None
 
-        # First part is usually the filename
-        candidate = parts[0].strip().lstrip('● ').strip('*').strip()  # remove dirty indicators
+        # Editors differ in title order:
+        #   VS Code / Cursor:  app.py - project - Editor
+        #   Antigravity:       Antigravity IDE - app.py
+        # Pick the first part with a tracked file extension rather than always
+        # assuming parts[0] is the file.
+        candidate = None
+        for part in parts:
+            cleaned = part.lstrip("\u25cf ").strip().strip("*").strip()
+            if cleaned and Path(cleaned).suffix.lower() in TRACKED_EXTENSIONS:
+                candidate = cleaned
+                break
         if not candidate:
             return None
 
-        # Must have a tracked extension
-        ext = Path(candidate).suffix.lower()
-        if ext not in TRACKED_EXTENSIONS:
-            return None
+        ide_names = {name.lower() for name in IDE_PROCESS_MAP.values()}
+        ide_names.update(key.lower() for key in IDE_PROCESS_MAP)
+        project: Optional[str] = None
+        for part in parts:
+            if part == candidate:
+                continue
+            if part.lower() in ide_names:
+                continue
+            project = part
+            break
 
-        file_name = candidate
+        file_path, resolved_project = self._resolve_project_file(candidate, project)
+        if resolved_project:
+            project = resolved_project
+        elif os.path.isabs(file_path):
+            project = _get_project_name(file_path) or project
+        return file_path, project, editor
 
-        # Try to extract project from title parts
-        # VS Code: "filename.py â€” project_folder â€” Visual Studio Code"
-        # PyCharm: "filename.py [project] â€” PyCharm"
-        project = None
-        if len(parts) >= 2:
-            # Second part is usually the project/folder name
-            project_candidate = parts[1].strip()
-            ide_names = ['Visual Studio Code', 'VS Code', 'PyCharm', 'Cursor',
-                         'IntelliJ IDEA', 'WebStorm', 'Sublime Text', 'Notepad++',
-                         'Antigravity', 'Antigravity IDE']
-            if project_candidate not in ide_names:
-                project = project_candidate
+    def _record_edit(
+        self,
+        session,
+        file_path: str,
+        duration: float,
+        project: Optional[str] = None,
+        editor: Optional[str] = None,
+        proc: str = "",
+        title: str = "",
+    ) -> None:
+        """Upsert the inferred duration for ``file_path`` for today."""
+        from database.models import FileEdit
 
-        # Try to build a full file path if project folder is available
-        # If the title gives us the full path, use it
-        file_path = file_name
-        if project and len(parts) >= 3:
-            # VS Code format: "file â€” folder â€” IDE"
-            # The folder might be a full path on some systems
-            folder = parts[1].strip()
-            possible_path = os.path.join(folder, file_name)
-            if os.path.isfile(possible_path):
-                file_path = os.path.abspath(possible_path)
-
-        if not project and os.path.isabs(file_path):
-            project = _get_project_name(file_path)
-
-        return (file_path, project, editor)
-
-    def _record_edit(self, session, file_name: str, duration: float,
-                     project: Optional[str] = None, editor: Optional[str] = None):
-        """Upsert a FileEdit record."""
         try:
-            from database.models import FileEdit
-            today = datetime.now().strftime('%Y-%m-%d')
-            # Find existing record for same file+date
-            existing = (session.query(FileEdit)
-                        .filter(FileEdit.file_name == file_name,
-                                FileEdit.session_date == today)
-                        .first())
+            today = datetime.now().strftime("%Y-%m-%d")
+            workspace = self.workspace or classifier.classify_application(
+                process=proc, title=title, path=file_path
+            )
+            if workspace == "unclassified" and project:
+                # A resolved project root is reliable development evidence.
+                workspace = "development"
+
+            project_root = self._project_root_for_path(file_path)
+            relative_path = None
+            if project_root:
+                try:
+                    relative_path = os.path.relpath(file_path, project_root)
+                except Exception:
+                    relative_path = None
+
+            existing = (
+                session.query(FileEdit)
+                .filter(
+                    FileEdit.session_date == today,
+                    FileEdit.file_path == file_path,
+                )
+                .first()
+            )
             if existing:
                 existing.duration_sec = duration
                 existing.timestamp = datetime.now()
-                if project and not existing.project:
+                existing.workspace = workspace
+                if project:
                     existing.project = project
-                if editor and not existing.editor:
+                if editor:
                     existing.editor = editor
+                if project_root:
+                    existing.project_root = project_root
+                if relative_path:
+                    existing.relative_path = relative_path
             else:
-                lang = _get_language(file_name)
-                fe = FileEdit(
+                session.add(FileEdit(
                     session_id=SESSION_ID,
-                    file_path=file_name,
-                    file_name=file_name,
+                    file_path=file_path,
+                    file_name=os.path.basename(file_path),
                     project=project,
-                    language=lang,
+                    language=get_language(file_path),
                     duration_sec=duration,
-                    event_type='modified',
+                    event_type="modified",
                     session_date=today,
                     editor=editor,
-                )
-                session.add(fe)
+                    workspace=workspace,
+                    source="active_window_inference",
+                    project_root=project_root,
+                    relative_path=relative_path,
+                    extension=Path(file_path).suffix.lower() or None,
+                ))
             session.commit()
-        except Exception as e:
-            log.debug('FileEdit record error: %s', e)
+        except Exception as exc:
+            self._last_error = str(exc)
+            log.debug("FileEdit record error: %s", exc)
             try:
                 session.rollback()
             except Exception:
                 pass
-

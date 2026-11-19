@@ -14,15 +14,25 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Load .env file from project root (works both from source and frozen exe)
+# Load a user-provided .env from outside the executable.  In a frozen build
+# __file__ lives in the temporary extraction directory, so it must never be
+# treated as a configuration location (that is how secrets get bundled).
 try:
     from dotenv import load_dotenv
-    _env_file = Path(__file__).resolve().parent / '.env'
-    if not _env_file.exists():
-        # When frozen as exe, look next to the exe
-        _env_file = Path(sys.executable).resolve().parent / '.env'
-    if _env_file.exists():
-        load_dotenv(str(_env_file), override=False)
+
+    _env_candidates = []
+    if getattr(sys, "frozen", False):
+        _env_candidates.append(Path(sys.executable).resolve().parent / ".env")
+        _env_candidates.append(
+            Path(os.environ.get("APPDATA") or Path.home()) / "WorkSense" / ".env"
+        )
+    else:
+        _env_candidates.append(Path(__file__).resolve().parent / ".env")
+        _env_candidates.append(Path(sys.executable).resolve().parent / ".env")
+    for _env_file in _env_candidates:
+        if _env_file.is_file():
+            load_dotenv(str(_env_file), override=False)
+            break
 except ImportError:
     pass  # python-dotenv not installed; rely on system env vars
 
@@ -366,6 +376,10 @@ def open_dashboard(_=None):
 
 def open_dashboard_when_ready(port: int, timeout: float = 15.0):
     """Poll the web server until it answers before launching the browser."""
+    if os.environ.get("WS_NO_BROWSER") == "1" or os.environ.get("WS_HEADLESS") == "1":
+        log.info("Browser launch suppressed by WS_NO_BROWSER/WS_HEADLESS")
+        return
+
     def _poll_and_open():
         import urllib.request
         start = time.time()
@@ -390,16 +404,23 @@ def open_dashboard_when_ready(port: int, timeout: float = 15.0):
 def on_exit(icon, _=None):
     log.info('User requested exit')
     try:
-        from backend.app import tracker, git_watcher, screen_worker, browser_hist, meeting_trk, smart_sum
+        from backend.app import (
+            tracker, git_watcher, screen_worker, browser_hist,
+            meeting_trk, smart_sum, fs_watcher, file_watcher, search_ext,
+        )
         tracker.stop()
         git_watcher.stop()
         screen_worker.stop()
         browser_hist.stop()
         meeting_trk.stop()
         smart_sum.stop()
+        fs_watcher.stop()
+        file_watcher.stop()
+        search_ext.stop()
     except Exception as e:
         log.warning('Shutdown error: %s', e)
-    # Destroy the floating widget
+    # Ask the Tk thread to destroy the widget.  Calling Tk directly from the
+    # pystray menu thread can deadlock the process during Exit.
     try:
         from ui.status_widget import get_widget
         w = get_widget()
@@ -445,7 +466,7 @@ def _find_available_port(preferred_port=8765):
         except OSError:
             continue
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
+        s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
 
 
@@ -531,11 +552,13 @@ def main(argv=None):
             pass
 
     # ── Show consent dialog FIRST (only on first launch) ────────────────────
-    try:
-        from ui.status_widget import show_consent_dialog
-        show_consent_dialog()
-    except Exception as e:
-        log.warning('Consent dialog error: %s', e)
+    headless = os.environ.get("WS_HEADLESS") == "1"
+    if not headless:
+        try:
+            from ui.status_widget import show_consent_dialog
+            show_consent_dialog()
+        except Exception as e:
+            log.warning('Consent dialog error: %s', e)
 
     server_port = _find_available_port(8765)
     try:
@@ -547,6 +570,15 @@ def main(argv=None):
     # Start the web server (which initializes DB, activity tracker, git watcher, screen worker)
     web_thread = threading.Thread(target=_start_web_server, args=(server_port,), daemon=True)
     web_thread.start()
+
+    if headless:
+        log.info('Headless mode: dashboard on http://127.0.0.1:%s', server_port)
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            return 0
+
     _start_daily_report_scheduler()
 
     # Automatically open the dashboard in the default browser when the server is actually ready
@@ -613,13 +645,19 @@ def main(argv=None):
         icon.run()
     finally:
         try:
-            from backend.app import tracker, git_watcher, screen_worker, browser_hist, meeting_trk, smart_sum
+            from backend.app import (
+                tracker, git_watcher, screen_worker, browser_hist,
+                meeting_trk, smart_sum, fs_watcher, file_watcher, search_ext,
+            )
             tracker.stop()
             git_watcher.stop()
             screen_worker.stop()
             browser_hist.stop()
             meeting_trk.stop()
             smart_sum.stop()
+            fs_watcher.stop()
+            file_watcher.stop()
+            search_ext.stop()
         except Exception:
             pass
         try:

@@ -426,6 +426,7 @@ class SmartSummarizer:
             keywords = _extract_keywords(f'{title} {proc} {ocr_text[:500] if ocr_text else ""}')
 
             try:
+                from config.workspace_rules import classifier
                 insight = ActivityInsight(
                     timestamp=first_seen,
                     session_id=SESSION_ID,
@@ -437,6 +438,9 @@ class SmartSummarizer:
                     session_date=today,
                     engagement_type=engagement,
                     ocr_summary=ocr_summary[:1024] if ocr_summary else None,
+                    workspace=classifier.classify_application(
+                        process=proc or '', title=title or ''
+                    ),
                 )
                 session.add(insight)
                 saved += 1

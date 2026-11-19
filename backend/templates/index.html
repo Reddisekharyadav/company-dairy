@@ -11,9 +11,7 @@
   <link rel="manifest" href="/static/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/static/vendor/chart.umd.min.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -22,6 +20,28 @@
     }
   </script>
   <style>
+    /* Local fonts keep the dashboard fully offline and avoid third-party calls. */
+    @font-face {
+      font-family: 'Inter'; font-style: normal; font-weight: 300 700; font-display: swap;
+      src: url('/static/fonts/inter-latin.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'Inter'; font-style: normal; font-weight: 300 700; font-display: swap;
+      src: url('/static/fonts/inter-latin-ext.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400 500; font-display: swap;
+      src: url('/static/fonts/jetbrains-mono-latin.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400 500; font-display: swap;
+      src: url('/static/fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
+
     /* ── Variables ── */
     :root {
       --bg:       #0a0e17;
@@ -78,10 +98,12 @@
       background:var(--surface); border-bottom:1px solid var(--border);
       padding:0 28px;
     }
-    .persona-nav-inner { max-width:1400px; margin:0 auto; display:flex; gap:0; }
+    .persona-nav-inner {
+      max-width:1400px; margin:0 auto; display:flex; flex-wrap:wrap; gap:0;
+    }
     .p-tab {
-      display:flex; align-items:center; gap:8px;
-      padding:14px 24px; cursor:pointer; font-size:.85rem; font-weight:500;
+      display:flex; align-items:center; gap:7px; white-space:nowrap;
+      padding:12px 16px; cursor:pointer; font-size:.8rem; font-weight:500;
       color:var(--muted2); border-bottom:2px solid transparent;
       transition:all .2s; background:none; border-top:none; border-left:none; border-right:none;
       font-family:'Inter',sans-serif;
@@ -346,6 +368,75 @@
     .lang-css    { background:#563d7c; }
     .lang-md     { background:#083fa1; }
     .lang-default{ background:var(--muted); }
+
+    /* ── GLOBAL WORKSPACE / DATE FILTERS ── */
+    .filter-bar {
+      display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+      padding:13px 18px; margin-bottom:20px; background:var(--surface);
+      border:1px solid var(--border); border-radius:var(--radius);
+      position:sticky; top:64px; z-index:90;
+    }
+    .filter-group { display:flex; align-items:center; gap:8px; font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+    .filter-group select, .filter-group input {
+      background:var(--surface2); border:1px solid var(--border2); color:var(--text);
+      padding:7px 10px; border-radius:8px; font-family:inherit; font-size:.8rem;
+    }
+    .filter-group input[type="date"] { color-scheme:dark; }
+    .filter-summary { margin-left:auto; font-size:.72rem; color:var(--muted2); font-family:'JetBrains Mono',monospace; }
+
+    /* ── DATA TABLES ── */
+    .table-wrap { max-height:520px; overflow:auto; border-radius:8px; }
+    .data-table { width:100%; border-collapse:collapse; font-size:.79rem; }
+    .data-table th {
+      text-align:left; font-size:.65rem; color:var(--muted); padding:8px 10px;
+      font-weight:600; text-transform:uppercase; letter-spacing:.06em;
+      background:var(--surface2); position:sticky; top:0; z-index:1;
+      border-bottom:1px solid var(--border2);
+    }
+    .data-table td { padding:9px 10px; border-top:1px solid var(--border); vertical-align:top; }
+    .data-table tbody tr:hover { background:var(--surface2); }
+    .data-table .mono { font-family:'JetBrains Mono',monospace; font-size:.72rem; }
+    .data-table .truncate { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* ── BADGES / STATES ── */
+    .ws-badge, .event-badge {
+      display:inline-block; padding:2px 8px; border-radius:20px;
+      font-size:.62rem; font-weight:600; white-space:nowrap;
+      background:rgba(59,130,246,.14); color:var(--accent);
+    }
+    .ws-company { background:rgba(59,130,246,.16); color:#60a5fa; }
+    .ws-development { background:rgba(16,185,129,.16); color:var(--green); }
+    .ws-combined { background:rgba(139,92,246,.16); color:var(--accent2); }
+    .ws-personal { background:rgba(245,158,11,.16); color:var(--orange); }
+    .ws-unclassified, .ws-all { background:rgba(100,116,139,.18); color:var(--muted2); }
+    .event-created { background:rgba(16,185,129,.14); color:var(--green); }
+    .event-modified { background:rgba(59,130,246,.14); color:var(--accent); }
+    .event-deleted { background:rgba(239,68,68,.14); color:var(--red); }
+    .event-moved { background:rgba(139,92,246,.14); color:var(--accent2); }
+    .state-box { text-align:center; padding:34px 18px; color:var(--muted); font-size:.84rem; line-height:1.6; }
+    .state-box.loading { color:var(--accent); }
+    .state-box.error { color:var(--red); }
+    .state-box strong { color:var(--text); }
+
+    /* ── SETTINGS ── */
+    .settings-grid { display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    @media(max-width:760px){ .settings-grid { grid-template-columns:1fr; } }
+    .settings-grid label { display:block; font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; font-weight:600; }
+    .settings-grid input, .settings-grid select {
+      width:100%; background:var(--surface2); border:1px solid var(--border2);
+      color:var(--text); padding:8px 11px; border-radius:8px; font-family:inherit; font-size:.84rem;
+    }
+    .settings-grid small { display:block; color:var(--muted); font-size:.72rem; margin-top:4px; line-height:1.5; }
+    .root-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    .root-item { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.78rem; }
+    .root-item code { flex:1; font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--muted2); overflow:hidden; text-overflow:ellipsis; }
+    .kpi-sub { font-size:.72rem; color:var(--muted); margin-top:6px; }
+    .status-line { display:flex; align-items:center; gap:8px; font-size:.8rem; margin-bottom:8px; }
+    .status-line .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+    .status-line .dot.ok { background:var(--green); box-shadow:0 0 8px rgba(16,185,129,.6); }
+    .status-line .dot.bad { background:var(--red); }
+    .pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .privacy-note { font-size:.76rem; color:var(--muted2); line-height:1.6; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
   </style>
 </head>
 <body>
@@ -374,36 +465,78 @@
 <nav class="persona-nav">
   <div class="persona-nav-inner">
     <button class="p-tab active" id="tab-today" onclick="switchTab('today')">
-      <span class="tab-icon">🏠</span> Today
+      <span class="tab-icon">🏠</span> Overview
+    </button>
+    <button class="p-tab" id="tab-timeline" onclick="switchTab('timeline')">
+      <span class="tab-icon">⏪</span> Timeline (Recall)
+    </button>
+    <button class="p-tab" id="tab-company" onclick="switchTab('company')">
+      <span class="tab-icon">🏢</span> Company Work
+    </button>
+    <button class="p-tab" id="tab-dev" onclick="switchTab('dev')">
+      <span class="tab-icon">💻</span> Development Work
     </button>
     <button class="p-tab" id="tab-research" onclick="switchTab('research')">
-      <span class="tab-icon">🔬</span> Researcher
+      <span class="tab-icon">🔬</span> Research and Search
+    </button>
+    <button class="p-tab" id="tab-files" onclick="switchTab('files')">
+      <span class="tab-icon">📂</span> File Changes and Projects
     </button>
     <button class="p-tab" id="tab-browser" onclick="switchTab('browser')">
       <span class="tab-icon">🌐</span> Browser History
     </button>
-    <button class="p-tab" id="tab-dev" onclick="switchTab('dev')">
-      <span class="tab-icon">💻</span> Dev Files
-    </button>
-    <button class="p-tab" id="tab-company" onclick="switchTab('company')">
-      <span class="tab-icon">🏢</span> Company
-    </button>
     <button class="p-tab" id="tab-notes" onclick="switchTab('notes')">
       <span class="tab-icon">📝</span> Notes
-    </button>
-    <button class="p-tab" id="tab-reports" onclick="switchTab('reports')">
-      <span class="tab-icon">📊</span> Reports
     </button>
     <button class="p-tab" id="tab-memory" onclick="switchTab('memory')">
       <span class="tab-icon">🧠</span> Memory Search
     </button>
-    <button class="p-tab" id="tab-timeline" onclick="switchTab('timeline')">
-      <span class="tab-icon">⏪</span> Timeline
+    <button class="p-tab" id="tab-meetings" onclick="switchTab('meetings')">
+      <span class="tab-icon">📅</span> Meetings
+    </button>
+    <button class="p-tab" id="tab-reports" onclick="switchTab('reports')">
+      <span class="tab-icon">📊</span> Reports
+    </button>
+    <button class="p-tab" id="tab-settings" onclick="switchTab('settings')">
+      <span class="tab-icon">🔒</span> Settings and Privacy
     </button>
   </div>
 </nav>
 
 <main>
+
+<!-- ── GLOBAL WORKSPACE / DATE FILTERS ──────────────────────────────────────── -->
+<div class="filter-bar" id="filter-bar">
+  <div class="filter-group">
+    <span>Workspace</span>
+    <select id="global-workspace" onchange="onFiltersChanged()" title="Overview starts on All workspaces so new captures are visible. Reports default to Company unless you explicitly change this filter.">
+      <option value="company">Company</option>
+      <option value="development">Development</option>
+      <option value="combined">Combined (Company + Development)</option>
+      <option value="personal">Personal</option>
+      <option value="unclassified">Unclassified</option>
+      <option value="all" selected>All workspaces (explicit)</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <span>Period</span>
+    <select id="global-period" onchange="onFiltersChanged()">
+      <option value="daily" selected>Today</option>
+      <option value="weekly">This week</option>
+      <option value="monthly">This month</option>
+      <option value="all">All time</option>
+      <option value="custom">Custom range</option>
+    </select>
+  </div>
+  <div class="filter-group" id="custom-range" style="display:none">
+    <span>From</span>
+    <input type="date" id="global-start" onchange="onFiltersChanged()">
+    <span>To</span>
+    <input type="date" id="global-end" onchange="onFiltersChanged()">
+  </div>
+  <button class="btn btn-secondary btn-sm" onclick="refreshCurrentTab()">↻ Apply</button>
+  <span class="filter-summary" id="filter-summary">All workspaces · Today</span>
+</div>
 
 <!-- ── SESSION HANDOFF CARD ─────────────────────────────────────────────────── -->
 <div class="handoff-card hidden" id="handoff-card">
@@ -498,7 +631,7 @@
   </div>
 
   <!-- Main Viewer: Screenshot + Metadata + Activity Description -->
-  <div class="card" style="margin-bottom:16px;overflow:hidden;">
+  <div class="card" id="timeline-viewer" style="margin-bottom:16px;overflow:hidden;">
     <div id="timeline-stage" style="position:relative;width:100%;height:55vh;background:#0a0a0f;border-radius:8px;margin-bottom:16px;">
       <img id="timeline-image" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" src="" />
       <svg id="timeline-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:auto;" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1920 1080"></svg>
@@ -532,8 +665,16 @@
     </div>
   </div>
 
+  <div class="card" id="timeline-empty" style="display:none;margin-bottom:16px;">
+    <div class="empty-state" style="padding:38px 18px;text-align:center;line-height:1.7">
+      <div style="font-size:2rem;margin-bottom:8px">⏪</div>
+      <strong>No visual timeline frames for this workspace and period.</strong><br>
+      Choose a different workspace/period above, or enable screen capture in Settings and Privacy.
+    </div>
+  </div>
+
   <!-- Timeline Activity Strip: mini thumbnails of recent activity -->
-  <div class="card" style="margin-bottom:16px;">
+  <div class="card" id="timeline-activity-log" style="margin-bottom:16px;">
     <div class="card-title"><span class="icon">📋</span> Activity Log</div>
     <div id="timeline-activity-strip" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;"></div>
   </div>
@@ -739,10 +880,14 @@
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <div class="panel" id="panel-dev">
 
+  <div class="privacy-note" style="margin-bottom:20px">
+    💡 Focused-window file duration is an <strong>estimate</strong> based on the active editor window — it is not proof of typing. Real filesystem create/modify/delete/move events are shown in File Changes and Projects.
+  </div>
+
   <!-- File Stats Row -->
   <div class="grid g3" style="margin-bottom:20px">
     <div class="card">
-      <div class="card-title"><span class="icon">📝</span> Files Edited Today</div>
+      <div class="card-title"><span class="icon">📝</span> Files with Inferred Time</div>
       <div class="stat-value stat-accent" id="dev-stat-files">—</div>
       <div class="stat-label">unique files</div>
     </div>
@@ -809,11 +954,11 @@
   <!-- Language breakdown -->
   <div class="grid g2">
     <div class="card">
-      <div class="card-title"><span class="icon">📊</span> Time by Language</div>
+      <div class="card-title"><span class="icon">📊</span> Inferred Edit Time by Language</div>
       <div class="chart-wrap"><canvas id="langChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">🗃️</span> Project Distribution</div>
+      <div class="card-title"><span class="icon">🗃️</span> Project Distribution (observed changes)</div>
       <div class="chart-wrap"><canvas id="projectChart"></canvas></div>
     </div>
   </div>
@@ -940,6 +1085,223 @@
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- FILE CHANGES AND PROJECTS PANEL                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-files">
+
+  <div class="grid g4" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📂</span> Observed Changes</div>
+      <div class="stat-value stat-accent" id="files-stat-changes">—</div>
+      <div class="stat-label">filesystem events</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂️</span> Projects</div>
+      <div class="stat-value stat-green" id="files-stat-projects">—</div>
+      <div class="stat-label">active projects</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔤</span> Languages</div>
+      <div class="stat-value stat-purple" id="files-stat-languages">—</div>
+      <div class="stat-label">detected file types</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔀</span> Git Commits</div>
+      <div class="stat-value stat-orange" id="files-stat-commits">—</div>
+      <div class="stat-label">in selected period</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-header">
+      <div class="section-title">📂 Observed File Changes</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="file-event-filter" onchange="refreshFileChanges()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem">
+          <option value="">All events</option>
+          <option value="created">Created</option>
+          <option value="modified">Modified</option>
+          <option value="deleted">Deleted</option>
+          <option value="moved">Moved</option>
+        </select>
+        <input id="file-search" placeholder="Filter path…" onkeydown="if(event.key==='Enter') refreshFileChanges()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem;width:180px">
+        <button class="btn btn-ghost btn-sm" onclick="refreshFileChanges()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="privacy-note" style="margin-bottom:12px">
+      🔒 These are real filesystem events captured by the background watcher. An event proves a file changed — it does not prove who changed it or that someone typed. File contents and diffs are never stored.
+    </div>
+    <div id="file-changes-state"></div>
+    <div class="table-wrap" id="file-changes-wrap">
+      <table class="data-table">
+        <thead><tr><th>When</th><th>Event</th><th>Workspace</th><th>Project</th><th>File</th><th>Language</th><th>Source</th></tr></thead>
+        <tbody id="file-changes-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🗃️</span> Changes by Project</div>
+      <div class="chart-wrap"><canvas id="filesProjectChart"></canvas></div>
+      <div id="files-project-empty" class="empty-state" style="display:none">No project activity in this scope.</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔤</span> Changes by Language</div>
+      <div class="chart-wrap"><canvas id="filesLangChart"></canvas></div>
+      <div id="files-lang-empty" class="empty-state" style="display:none">No language metadata in this scope.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🔀</span> Git Commits</div>
+    <div id="git-commits-list" class="activity-list">
+      <div class="state-box loading">Loading commits…</div>
+    </div>
+  </div>
+
+</div><!-- /panel-files -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MEETINGS PANEL                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-meetings">
+
+  <div class="grid g3" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📅</span> Meetings</div>
+      <div class="stat-value stat-accent" id="meetings-stat-count">—</div>
+      <div class="stat-label">in selected period</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">⏱️</span> Meeting Time</div>
+      <div class="stat-value stat-purple" id="meetings-stat-minutes">—</div>
+      <div class="stat-label">minutes tracked</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📹</span> Top Platform</div>
+      <div class="stat-value stat-green" id="meetings-stat-platform" style="font-size:1.3rem">—</div>
+      <div class="stat-label">most used</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">📅 Meeting History</div>
+      <button class="btn btn-ghost btn-sm" onclick="refreshMeetingsPanel()">↻ Refresh</button>
+    </div>
+    <div id="meetings-state"></div>
+    <div class="table-wrap" id="meetings-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date / Time</th><th>Title</th><th>Platform</th><th>Duration</th><th>Workspace</th></tr></thead>
+        <tbody id="meetings-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /panel-meetings -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- SETTINGS AND PRIVACY PANEL                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-settings">
+
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">📡</span> Filesystem Watcher</div>
+      <div id="watcher-status-box">
+        <div class="state-box loading">Checking watcher status…</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn btn-success btn-sm" onclick="startWatcher()">▶ Start</button>
+        <button class="btn btn-ghost btn-sm" onclick="stopWatcher()">■ Stop</button>
+        <button class="btn btn-secondary btn-sm" onclick="refreshWatcherStatus()">↻ Status</button>
+      </div>
+      <div style="margin-top:16px">
+        <label style="display:block;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:600">Watch a development root</label>
+        <div style="display:flex;gap:8px">
+          <input id="new-root-path" placeholder="D:\projects\my-app" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:.78rem">
+          <button class="btn btn-primary btn-sm" onclick="addWatcherRoot()">Add</button>
+        </div>
+        <div class="root-list" id="watcher-roots"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">💾</span> Storage &amp; Retention</div>
+      <div id="storage-stats-box" class="state-box loading">Loading storage statistics…</div>
+      <div class="settings-grid" style="margin-top:14px">
+        <div>
+          <label>Retention (days)</label>
+          <input type="number" id="set_retention_days" min="1" max="3650">
+          <small>Older rows and screenshots are pruned by the retention job.</small>
+        </div>
+        <div>
+          <label>Max storage (MB)</label>
+          <input type="number" id="set_max_storage_mb" min="64">
+          <small>Upper bound used by the cleanup job.</small>
+        </div>
+        <div>
+          <label>Default report workspace</label>
+          <select id="set_default_workspace">
+            <option value="company">Company</option>
+            <option value="development">Development</option>
+          </select>
+          <small>Reports always default to Company unless changed here.</small>
+        </div>
+        <div>
+          <label>Watcher debounce (seconds)</label>
+          <input type="number" id="set_watcher_debounce" min="0.1" step="0.1">
+          <small>Batches rapid editor saves into one event.</small>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-primary btn-sm" onclick="savePrivacySettings()">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔒</span> Privacy Rules</div>
+      <div class="privacy-note" style="margin-bottom:12px">
+        WorkSense stores metadata only — never document contents, email bodies, message bodies, passwords, or API keys. Screen capture is opt-in.
+      </div>
+      <div id="privacy-rules-box" class="state-box loading">Loading privacy rules…</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn btn-secondary btn-sm" onclick="exportPrivacyData()">⬇ Export my data (JSON)</button>
+        <button class="btn btn-ghost btn-sm" onclick="rebuildSearchIndex()">🔎 Rebuild search index</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🗑️</span> Delete Data</div>
+      <div class="privacy-note" style="margin-bottom:12px">
+        Deletion is permanent and limited to one concrete workspace and the selected date range. Combined/all scopes cannot be deleted in one action.
+      </div>
+      <div id="delete-scope-label" style="font-size:.8rem;color:var(--muted2);margin-bottom:12px"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text);margin-bottom:14px">
+        <input type="checkbox" id="delete-confirm">
+        I understand this permanently deletes the selected records.
+      </label>
+      <button class="btn btn-sm" style="background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.35)" onclick="deleteWorkspaceData()">Delete selected data</button>
+      <div id="delete-status" style="font-size:.78rem;color:var(--muted);margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🧩</span> Workspace Classification</div>
+    <div class="privacy-note" style="margin-bottom:12px">
+      Workspaces are separated in the database and in every query. Legacy rows are deliberately marked <strong>unclassified</strong> rather than being auto-attributed. Browsers are never permanently classified — only the current site/title is evaluated.
+    </div>
+    <div id="workspace-rules-box" class="state-box loading">Loading workspace rules…</div>
+  </div>
+
+</div><!-- /panel-settings -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!-- NOTES PANEL                                                                -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <div class="panel" id="panel-notes">
@@ -983,13 +1345,21 @@
         <select id="report-period" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.82rem">
           <option value="daily">Today</option>
           <option value="weekly">This Week</option>
+          <option value="monthly">This Month</option>
+          <option value="all">All Time</option>
         </select>
         <button class="btn btn-primary" onclick="generateReport()">⚡ Generate Report</button>
         <button class="btn btn-secondary" id="btn-email-report" onclick="sendReportByEmail()">📧 Email Report</button>
         <button class="btn btn-ghost" id="download-md" onclick="downloadReport('md')" style="display:none">⬇ .md</button>
         <button class="btn btn-ghost" id="download-pdf" onclick="downloadReport('pdf')" style="display:none">⬇ .pdf</button>
+        <button class="btn btn-ghost" id="download-docx" onclick="downloadReport('docx')" style="display:none">⬇ .docx</button>
+        <button class="btn btn-ghost" onclick="exportExcelFromReports()">⬇ .xlsx</button>
       </div>
     </div>
+    <div class="privacy-note" style="margin-bottom:14px">
+      Reports are generated from a shared structured model and rendered as Markdown, PDF (ReportLab), Word (native styles) and Excel (Summary / Timeline / File Changes / Meetings / Research / Git). The active workspace and period above are applied to every format.
+    </div>
+    <div id="report-scope-note" style="font-size:.78rem;color:var(--muted);margin-bottom:12px"></div>
     <div id="report-output"></div>
   </div>
 
@@ -1017,6 +1387,190 @@ let projectChartInst = null, sourcesChartInst = null, researchTimeInst = null;
 let companyProjectInst = null, weeklyChartInst = null;
 let lastReportPaths = {};
 let currentTab = 'today';
+let filesProjectInst = null, filesLangInst = null;
+let workspaceExplicit = false;
+let screenCaptureEnabled = false;
+let lastScreenshotSignature = '';
+let lastScreenshot2Signature = '';
+const OVERVIEW_DEFAULT_SCOPE = 'all';
+
+// The backend is authoritative: every API call carries an explicit, validated
+// workspace scope. Reports/lists never cross workspaces unless the user picks
+// Combined or All explicitly.
+//
+// The Overview starts on All workspaces so live captures are visible even when
+// conservative classification marks a browser window as unclassified. Reports
+// still reset to Company unless the user has explicitly chosen another scope.
+const appState = { workspace: OVERVIEW_DEFAULT_SCOPE, period: 'daily', start: '', end: '' };
+const WORKSPACE_LABELS = {
+  company: 'Company', development: 'Development', combined: 'Company + Development',
+  personal: 'Personal', unclassified: 'Unclassified', all: 'All workspaces',
+};
+const PERIOD_LABELS = {
+  daily: 'Today', weekly: 'This week', monthly: 'This month',
+  all: 'All time', custom: 'Custom range',
+};
+
+function apiUrl(path, extra = {}) {
+  const url = new URL(path, window.location.origin);
+  if (appState.workspace) url.searchParams.set('workspace', appState.workspace);
+  if (appState.period) url.searchParams.set('period', appState.period);
+  if (appState.period === 'custom') {
+    if (appState.start) url.searchParams.set('start', appState.start);
+    if (appState.end) url.searchParams.set('end', appState.end);
+  }
+  Object.entries(extra).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, value);
+    }
+  });
+  return url.pathname + url.search;
+}
+
+async function apiGet(path, extra = {}) {
+  const response = await fetch(apiUrl(path, extra));
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const body = await response.json(); detail = body.error || body.detail || detail; } catch (_) {}
+    throw new Error(detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+async function apiPost(path, body = {}) {
+  const response = await fetch(apiUrl(path), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.detail || `Request failed (${response.status})`);
+  return data;
+}
+
+async function apiDelete(path, body = {}) {
+  const response = await fetch(apiUrl(path), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.detail || `Request failed (${response.status})`);
+  return data;
+}
+
+function periodDays() {
+  if (appState.period === 'weekly') return 7;
+  if (appState.period === 'monthly') return 30;
+  if (appState.period === 'all') return 3650;
+  if (appState.period === 'custom') {
+    if (!appState.start || !appState.end) return 1;
+    const diff = Math.ceil((new Date(appState.end) - new Date(appState.start)) / 86400000);
+    return Math.max(1, diff + 1);
+  }
+  return 1;
+}
+
+function setState(el, kind, message) {
+  if (!el) return;
+  el.innerHTML = `<div class="state-box ${kind}">${message}</div>`;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function workspaceBadge(ws) {
+  const key = (ws || 'unclassified').toLowerCase();
+  return `<span class="ws-badge ws-${escapeHtml(key)}">${escapeHtml(WORKSPACE_LABELS[key] || key)}</span>`;
+}
+
+function eventBadge(eventType) {
+  const key = (eventType || 'modified').toLowerCase();
+  return `<span class="event-badge event-${escapeHtml(key)}">${escapeHtml(key)}</span>`;
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.round((total % 3600) / 60);
+  if (h) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function updateFilterSummary() {
+  const summary = document.getElementById('filter-summary');
+  if (!summary) return;
+  let range = PERIOD_LABELS[appState.period] || appState.period;
+  if (appState.period === 'custom' && appState.start && appState.end) {
+    range = `${appState.start} to ${appState.end}`;
+  }
+  summary.textContent = `${WORKSPACE_LABELS[appState.workspace] || appState.workspace} · ${range}`;
+  const label = document.getElementById('delete-scope-label');
+  if (label) {
+    label.textContent = `Target: ${WORKSPACE_LABELS[appState.workspace] || appState.workspace} · ${range}`;
+  }
+  const note = document.getElementById('report-scope-note');
+  if (note) {
+    note.textContent = `Generating for ${WORKSPACE_LABELS[appState.workspace] || appState.workspace} · ${range}.`;
+  }
+}
+
+function onFiltersChanged() {
+  const ws = document.getElementById('global-workspace');
+  const period = document.getElementById('global-period');
+  const start = document.getElementById('global-start');
+  const end = document.getElementById('global-end');
+  const nextWorkspace = ws ? ws.value : OVERVIEW_DEFAULT_SCOPE;
+  if (nextWorkspace !== appState.workspace) workspaceExplicit = true;
+  appState.workspace = nextWorkspace;
+  appState.period = period ? period.value : 'daily';
+  appState.start = start ? start.value : '';
+  appState.end = end ? end.value : '';
+  const custom = document.getElementById('custom-range');
+  if (custom) custom.style.display = appState.period === 'custom' ? 'flex' : 'none';
+  const reportPeriod = document.getElementById('report-period');
+  if (reportPeriod && ['daily', 'weekly', 'monthly', 'all'].includes(appState.period)) {
+    reportPeriod.value = appState.period;
+  }
+  const fileDays = document.getElementById('file-days');
+  if (fileDays) fileDays.value = String(periodDays());
+  updateFilterSummary();
+  refreshCurrentTab();
+}
+
+async function initFilters() {
+  try {
+    const meta = await fetch('/api/workspaces').then(r => r.json());
+    const select = document.getElementById('global-workspace');
+    if (select && Array.isArray(meta.scopes)) {
+      select.innerHTML = meta.scopes.map(scope =>
+        `<option value="${escapeHtml(scope)}">${escapeHtml(WORKSPACE_LABELS[scope] || scope)}</option>`
+      ).join('');
+      select.value = (currentTab === 'today' && !workspaceExplicit)
+        ? OVERVIEW_DEFAULT_SCOPE
+        : (meta.default_scope || 'company');
+    }
+    appState.workspace = select ? select.value : OVERVIEW_DEFAULT_SCOPE;
+  } catch (_) { /* keep the static options */ }
+  updateFilterSummary();
+}
+
+function refreshCurrentTab() {
+  if (currentTab === 'today') { refreshOverview(); }
+  else if (currentTab === 'company') { refreshCompanyTab(); }
+  else if (currentTab === 'dev') { refreshDevelopmentTab(); }
+  else if (currentTab === 'research') { refreshResearchTab(); }
+  else if (currentTab === 'files') { refreshFilesTab(); }
+  else if (currentTab === 'browser') { refreshBrowserHistory(); refreshBrowserTopSites(); }
+  else if (currentTab === 'notes') { refreshNotes(); }
+  else if (currentTab === 'timeline') { loadTimeline(); }
+  else if (currentTab === 'meetings') { refreshMeetingsPanel(); }
+  else if (currentTab === 'reports') { refreshReportScope(); }
+  else if (currentTab === 'settings') { refreshSettingsTab(); }
+}
 
 const CATEGORY_COLORS = {
   'Coding':               '#3b82f6',
@@ -1044,15 +1598,16 @@ const SOURCE_COLORS = {
 };
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   updateClock();
   setInterval(updateClock, 1000);
+  await initFilters();
+  await checkConsent();
   refreshAll();
   refreshLiveStatus();
   setInterval(refreshLiveStatus, 2000);
-  setInterval(refreshFeed, 10000);
-  setInterval(refreshStats, 30000);
-  checkConsent();
+  setInterval(() => { if (currentTab === 'today') { refreshFeed(); refreshScreenshots(); } }, 10000);
+  setInterval(() => { if (currentTab === 'today') refreshStats(); }, 30000);
   loadHandoffCard();
 });
 
@@ -1062,11 +1617,54 @@ function updateClock() {
 }
 
 async function refreshAll() {
-  await Promise.all([
+  await refreshCurrentTab();
+}
+
+async function refreshOverview() {
+  await Promise.allSettled([
     refreshFeed(), refreshCategories(), refreshWebsites(),
     refreshTimeline(), refreshStats(), refreshScreenshots(),
     refreshSearchCount(), refreshMeetings(), refreshInsights()
   ]);
+}
+
+async function refreshCompanyTab() {
+  await Promise.allSettled([
+    refreshCompanyCharts(), refreshCompanyResearch(), refreshBriefing(),
+    refreshCompanyMeetings(), refreshCompanyInsights(), refreshCompanyStats()
+  ]);
+}
+
+async function refreshDevelopmentTab() {
+  await Promise.allSettled([
+    refreshDevFiles(), refreshHeatmap(), refreshLangChart(), refreshProjectChart()
+  ]);
+}
+
+async function refreshResearchTab() {
+  await Promise.allSettled([refreshResearch(), refreshSessions(), refreshSourcesChart()]);
+}
+
+async function refreshFilesTab() {
+  await Promise.allSettled([
+    refreshFileChanges(), refreshFileProjects(), refreshGitCommits()
+  ]);
+}
+
+function syncFilterControls() {
+  const ws = document.getElementById('global-workspace');
+  const period = document.getElementById('global-period');
+  if (ws) ws.value = appState.workspace;
+  if (period) period.value = appState.period;
+  updateFilterSummary();
+}
+
+function showAllWorkspaces() {
+  appState.workspace = OVERVIEW_DEFAULT_SCOPE;
+  workspaceExplicit = true;
+  syncFilterControls();
+  showToast('Showing all workspaces', '');
+  refreshCurrentTab();
 }
 
 // ─── Tab Switching ────────────────────────────────────────────────────────────
@@ -1076,12 +1674,21 @@ function switchTab(tab) {
   document.getElementById('panel-' + tab).classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
   currentTab = tab;
-  if (tab === 'research') { refreshResearch(); refreshSessions(); refreshSourcesChart(); }
-  if (tab === 'browser')  { refreshBrowserHistory(); refreshBrowserTopSites(); }
-  if (tab === 'dev')      { refreshDevFiles(); refreshHeatmap(); refreshLangChart(); refreshProjectChart(); }
-  if (tab === 'company')  { refreshCompanyCharts(); refreshCompanyResearch(); refreshBriefing(); refreshCompanyMeetings(); refreshCompanyInsights(); refreshCompanyStats(); }
-  if (tab === 'notes')    { refreshNotes(); }
-  if (tab === 'reports')  { refreshScreenshots2(); }
+  // Workspace-specific tabs make their isolation explicit instead of showing
+  // another workspace's data under a misleading heading.
+  if (tab === 'today' && !workspaceExplicit) {
+    appState.workspace = OVERVIEW_DEFAULT_SCOPE;
+    syncFilterControls();
+  }
+  if (tab === 'reports' && !workspaceExplicit) {
+    // Reports keep the safe Company default unless the user explicitly picked
+    // another scope in the filter above.
+    appState.workspace = 'company';
+    syncFilterControls();
+  }
+  if (tab === 'company') { appState.workspace = 'company'; workspaceExplicit = true; syncFilterControls(); }
+  if (tab === 'dev') { appState.workspace = 'development'; workspaceExplicit = true; syncFilterControls(); }
+  refreshCurrentTab();
 }
 
 // ── Auto Refresh ─────────────────────────────────────────────────────────────
@@ -1089,23 +1696,8 @@ let autoRefreshInterval;
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   autoRefreshInterval = setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      const activeTab = document.querySelector('.p-tab.active').id.replace('tab-', '');
-      if (activeTab === 'today') {
-        refreshTimeline(); refreshStats(); refreshScreenshots();
-      } else if (activeTab === 'timeline') {
-        loadTimeline();
-      } else if (activeTab === 'company') {
-        refreshCompanyStats(); refreshCompanyMeetings(); refreshCompanyInsights();
-      } else if (activeTab === 'research') {
-        refreshResearch(); refreshSessions();
-      } else if (activeTab === 'browser') {
-        // don't auto refresh heavy table
-      } else if (activeTab === 'notes') {
-        refreshNotes();
-      } else if (activeTab === 'reports') {
-        refreshScreenshots2();
-      }
+    if (document.visibilityState === 'visible' && currentTab !== 'settings') {
+      refreshCurrentTab();
     }
   }, 30000); // 30 seconds
 }
@@ -1171,6 +1763,7 @@ function dismissHandoff() {
 async function checkConsent() {
   try {
     const d = await fetch('/api/consent/status').then(r => r.json());
+    screenCaptureEnabled = !!d.screen_capture_enabled;
     const banner = document.getElementById('consent-banner');
     const badgeEl = document.getElementById('screen-status-badge');
     const btnEnable = document.getElementById('btn-enable-screen');
@@ -1180,42 +1773,83 @@ async function checkConsent() {
       badgeEl.textContent = '● Active'; badgeEl.style.cssText = 'background:rgba(16,185,129,.2);color:#10b981';
       btnEnable.style.display = 'none'; btnDisable.style.display = '';
     } else {
-      banner.style.display = 'flex';
+      if (sessionStorage.getItem('ws-consent-dismissed') === '1') {
+        banner.style.display = 'none';
+      } else {
+        banner.style.display = 'flex';
+        banner.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:1.3rem">🔒</span>
+            <div>
+              <div style="font-weight:600;color:var(--text);font-size:.88rem">Screen capture is off</div>
+              <div style="color:var(--muted);font-size:.76rem">WorkSense stores metadata only. Enable screen capture to record periodic screenshots and OCR for this local dashboard.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="grantConsent()">Enable screen capture</button>
+            <button class="btn btn-ghost btn-sm" onclick="dismissConsent()">Dismiss</button>
+          </div>`;
+      }
       badgeEl.textContent = '○ Disabled'; badgeEl.style.cssText = 'background:rgba(100,116,139,.15);color:#64748b';
       btnEnable.style.display = ''; btnDisable.style.display = 'none';
     }
   } catch(e) {}
 }
-function dismissConsent() { document.getElementById('consent-banner').style.display = 'none'; }
+function dismissConsent() {
+  document.getElementById('consent-banner').style.display = 'none';
+  try { sessionStorage.setItem('ws-consent-dismissed', '1'); } catch(e) {}
+}
 async function grantConsent() {
-  await fetch('/api/consent/grant', {method:'POST'});
-  showToast('✓ Screen capture enabled!', 'success'); await checkConsent(); setTimeout(refreshScreenshots, 2000);
+  try {
+    const response = await fetch('/api/consent/grant', {method:'POST'});
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    screenCaptureEnabled = true;
+    showToast('✓ Screen capture enabled. The first capture appears within 30 seconds.', 'success');
+    await checkConsent();
+    refreshScreenshots();
+    setTimeout(refreshScreenshots, 5000);
+    setTimeout(refreshFeed, 5000);
+  } catch (error) {
+    showToast('Could not enable screen capture: ' + (error.message || error), 'error');
+  }
 }
 async function revokeConsent() {
-  await fetch('/api/consent/revoke', {method:'POST'});
-  showToast('Screen capture disabled.', ''); await checkConsent();
+  try {
+    const response = await fetch('/api/consent/revoke', {method:'POST'});
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    screenCaptureEnabled = false;
+    showToast('Screen capture disabled.', '');
+    await checkConsent();
+    refreshScreenshots();
+  } catch (error) {
+    showToast('Could not disable screen capture: ' + (error.message || error), 'error');
+  }
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 async function refreshStats() {
   try {
-    const [cats, sites] = await Promise.all([
-      fetch('/api/categories').then(r => r.json()),
-      fetch('/api/websites').then(r => r.json()),
+    const [summary, sites] = await Promise.all([
+      apiGet('/api/summary'),
+      apiGet('/api/websites'),
     ]);
-    const total = cats.reduce((s,c) => s+c.seconds, 0) / 3600;
-    document.getElementById('stat-total').textContent = total.toFixed(2);
-    if (cats.length) {
-      document.getElementById('stat-top').textContent = cats[0].category;
-      document.getElementById('stat-top-time').textContent = `${cats[0].hours.toFixed(2)} hours`;
+    const totalEl = document.getElementById('stat-total');
+    if (totalEl) totalEl.textContent = Number(summary.active_hours || 0).toFixed(2);
+    const top = (summary.top_categories || [])[0];
+    if (top) {
+      document.getElementById('stat-top').textContent = top.category || '—';
+      document.getElementById('stat-top-time').textContent = `${Number(top.hours || 0).toFixed(2)} hours`;
     }
-    document.getElementById('stat-sites').textContent = sites.length;
-  } catch(e) {}
+    document.getElementById('stat-sites').textContent = summary.sites ?? sites.length;
+  } catch(e) {
+    const totalEl = document.getElementById('stat-total');
+    if (totalEl) totalEl.textContent = '—';
+  }
 }
 
 async function refreshSearchCount() {
   try {
-    const data = await fetch('/api/research/queries?days=1&limit=200').then(r => r.json());
+    const data = await apiGet('/api/research/queries', { days: periodDays(), limit: 200 });
     document.getElementById('stat-searches').textContent = data.length || 0;
   } catch(e) {}
 }
@@ -1223,7 +1857,7 @@ async function refreshSearchCount() {
 // ─── Today Tab Charts ─────────────────────────────────────────────────────────
 async function refreshCategories() {
   try {
-    const data = await fetch('/api/categories').then(r => r.json());
+    const data = await apiGet('/api/categories');
     const labels = data.map(d => d.category);
     const values = data.map(d => d.hours);
     const colors = labels.map(l => CATEGORY_COLORS[l] || '#58a6ff');
@@ -1240,7 +1874,7 @@ async function refreshCategories() {
 
 async function refreshTimeline() {
   try {
-    const data = await fetch('/api/timeline/chart').then(r => r.json());
+    const data = await apiGet('/api/timeline/chart');
     const hours = Array.from({length:24},(_,i) => i);
     const categories = [...new Set(Object.values(data).flatMap(v => Object.keys(v)))];
     const datasets = categories.map(cat => ({
@@ -1265,7 +1899,7 @@ async function refreshTimeline() {
 
 async function refreshWebsites() {
   try {
-    const sites = await fetch('/api/websites').then(r => r.json());
+    const sites = await apiGet('/api/websites');
     const tbody = document.getElementById('sites-tbody');
     if (!sites.length) {
       tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No website data yet.</td></tr>';
@@ -1287,21 +1921,34 @@ async function refreshWebsites() {
 
 async function refreshFeed() {
   try {
-    const events = await fetch('/api/events?limit=40').then(r => r.json());
+    const events = await apiGet('/api/events', {limit: 40});
     const feed = document.getElementById('activity-feed');
     document.getElementById('feed-count').textContent = events.length;
-    if (!events.length) { feed.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No events yet</div>'; return; }
+    if (!events.length) {
+      const wsLabel = WORKSPACE_LABELS[appState.workspace] || appState.workspace;
+      const showAll = appState.workspace !== 'all'
+        ? ' <button class="btn btn-secondary btn-sm" onclick="showAllWorkspaces()">Show all workspaces</button>'
+        : '';
+      feed.innerHTML = `<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No events in ${escapeHtml(wsLabel)} for this period.${showAll}</div>`;
+      return;
+    }
     feed.innerHTML = events.map(e => {
       const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      const cat = e.category || 'Other';
-      const col = CATEGORY_COLORS[cat] || '#58a6ff';
-      const title = e.window_title ? e.window_title.substring(0,55) : e.application;
-      const site = e.website || '';
+      const rawCat = e.category || 'Other';
+      const col = CATEGORY_COLORS[rawCat] || '#58a6ff';
+      const cat = escapeHtml(rawCat);
+      const rawTitle = e.window_title || e.application || '';
+      const title = escapeHtml(rawTitle.substring(0,55));
+      const site = escapeHtml(e.website || '');
       const idle = e.idle ? '💤' : '';
+      const wsBadge = appState.workspace === 'all' && e.workspace
+        ? `<span class="ws-badge ws-${escapeHtml(e.workspace)}">${escapeHtml(WORKSPACE_LABELS[e.workspace] || e.workspace)}</span>`
+        : '';
       return `<div class="activity-item">
         <span class="activity-time">${time}</span>
-        <span class="activity-app" title="${e.window_title||''}">${idle}${title}</span>
+        <span class="activity-app" title="${escapeHtml(rawTitle)}">${idle}${title}</span>
         ${site ? `<span class="activity-site">${site}</span>` : ''}
+        ${wsBadge}
         <span class="cat-badge" style="background:${col}22;color:${col}">${cat}</span>
       </div>`;
     }).join('');
@@ -1310,23 +1957,45 @@ async function refreshFeed() {
 
 async function refreshScreenshots() {
   try {
-    const shots = await fetch('/api/screenshots').then(r => r.json());
+    const shots = await apiGet('/api/screenshots');
     const wrap = document.getElementById('screenshots-wrap');
-    if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
+    if (!wrap) return;
+    if (!shots.length) {
+      const wsLabel = WORKSPACE_LABELS[appState.workspace] || appState.workspace;
+      const showAll = appState.workspace !== 'all'
+        ? ' <button class="btn btn-secondary btn-sm" onclick="showAllWorkspaces()">Show all workspaces</button>'
+        : '';
+      if (!screenCaptureEnabled) {
+        wrap.innerHTML = '<div class="empty-state">Screen capture is off. <button class="btn btn-primary btn-sm" onclick="grantConsent()">Enable screen capture</button></div>';
+      } else {
+        wrap.innerHTML = `<div class="empty-state">No screenshots in ${escapeHtml(wsLabel)} yet. The first capture appears within 30 seconds.${showAll}</div>`;
+      }
+      lastScreenshotSignature = 'empty:' + appState.workspace + ':' + screenCaptureEnabled;
+      return;
+    }
+    const signature = shots.map(s => `${s.id}:${s.workspace || ''}:${s.summary || ''}`).join('|');
+    if (signature === lastScreenshotSignature) return;
+    lastScreenshotSignature = signature;
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      const label = s.summary || s.source || 'Screen capture';
+      const rawLabel = s.summary || s.source || 'Screen capture';
+      const label = escapeHtml(rawLabel);
+      const shortLabel = escapeHtml(rawLabel.substring(0,35));
+      const ws = WORKSPACE_LABELS[s.workspace] || s.workspace || '';
       return `<div class="screenshot-card" title="${label}" style="cursor:pointer;" onclick="window.open('/api/screenshot/${s.id}')">
-        <img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
-        <div class="screenshot-meta"><strong>${time}</strong><br>${label.substring(0,35)}</div>
+        <img src="/api/screenshot/${s.id}" alt="Screen" onerror="this.parentElement.style.display='none'">
+        <div class="screenshot-meta"><strong>${time}</strong>${ws ? ' · ' + escapeHtml(ws) : ''}<br>${shortLabel}</div>
       </div>`;
     }).join('')}</div>`;
-  } catch(e) {}
+  } catch(e) {
+    const wrap = document.getElementById('screenshots-wrap');
+    if (wrap) wrap.innerHTML = `<div class="empty-state">Could not load screenshots: ${escapeHtml(e.message || e)}</div>`;
+  }
 }
 
 async function refreshMeetings() {
   try {
-    const data = await fetch('/api/meetings?days=1').then(r => r.json());
+    const data = await apiGet('/api/meetings', {days: 1});
     const list = document.getElementById('meetings-list');
     if (!data.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No meetings detected today</div>'; return; }
     list.innerHTML = data.map(m => {
@@ -1350,7 +2019,7 @@ async function refreshMeetings() {
 
 async function refreshInsights() {
   try {
-    const data = await fetch('/api/insights?days=1').then(r => r.json());
+    const data = await apiGet('/api/insights', {days: 1});
     const list = document.getElementById('insights-list');
     if (!data.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">Insights will appear here as you work</div>'; return; }
     list.innerHTML = data.slice(0, 10).map(i => {
@@ -1370,7 +2039,7 @@ async function refreshInsights() {
 async function refreshResearch() {
   try {
     const days = parseInt(document.getElementById('query-days').value) || 1;
-    const data = await fetch(`/api/research/queries?days=${days}&limit=100`).then(r => r.json());
+    const data = await apiGet('/api/research/queries', {days, limit: 100});
     const list = document.getElementById('query-list');
     if (!data.length) { list.innerHTML = '<div class="empty-state">No queries yet. Start searching!</div>'; return; }
     list.innerHTML = data.map(q => {
@@ -1392,7 +2061,7 @@ async function refreshResearch() {
 
 async function refreshBookmarks() {
   try {
-    const data = await fetch('/api/research/bookmarks').then(r => r.json());
+    const data = await apiGet('/api/research/bookmarks');
     const list = document.getElementById('bookmarks-list');
     if (!data.length) { list.innerHTML = '<div class="empty-state">Click ⭐ on any search query to bookmark it.</div>'; return; }
     list.innerHTML = data.map(q => {
@@ -1418,7 +2087,7 @@ async function toggleBookmark(id) {
 async function refreshSessions() {
   try {
     const days = parseInt(document.getElementById('session-days').value) || 7;
-    const data = await fetch(`/api/research/sessions?days=${days}`).then(r => r.json());
+    const data = await apiGet('/api/research/sessions', {days});
     const list = document.getElementById('sessions-list');
     if (!data.length) { list.innerHTML = '<div class="empty-state">No research sessions yet.</div>'; return; }
     list.innerHTML = data.map(s => {
@@ -1445,7 +2114,7 @@ async function refreshSessions() {
 
 async function refreshSourcesChart() {
   try {
-    const data = await fetch('/api/research/queries?days=30&limit=500').then(r => r.json());
+    const data = await apiGet('/api/research/queries', {days: 30, limit: 500});
     const srcMap = {};
     data.forEach(q => { srcMap[q.source] = (srcMap[q.source] || 0) + 1; });
     const labels = Object.keys(srcMap);
@@ -1467,7 +2136,7 @@ async function refreshSourcesChart() {
 async function refreshBrowserHistory() {
   try {
     const days = document.getElementById('browser-days').value;
-    const res = await fetch(`/api/browser/history?days=${days}&limit=200`);
+    const res = await fetch(apiUrl('/api/browser/history', {days, limit: 200}));
     const history = await res.json();
     const list = document.getElementById('browser-history-list');
 
@@ -1482,7 +2151,7 @@ async function refreshBrowserHistory() {
       const domainUrl = item.domain ? `https://${item.domain}` : '#';
       const siteName = item.site_name || item.domain;
       const title = item.title || item.url;
-      const faviconUrl = item.domain ? `https://www.google.com/s2/favicons?domain=${item.domain}&sz=32` : '';
+      const faviconUrl = '/static/site-icon.svg';
       
       html += `
         <div class="activity-item" style="display:flex; gap:12px; align-items:center;">
@@ -1505,7 +2174,7 @@ async function refreshBrowserHistory() {
 async function refreshBrowserTopSites() {
   try {
     const days = document.getElementById('browser-days').value;
-    const res = await fetch(`/api/browser/top-sites?days=${days}`);
+    const res = await fetch(apiUrl('/api/browser/top-sites', {days}));
     const sites = await res.json();
     const tbody = document.getElementById('browser-top-sites-tbody');
 
@@ -1516,7 +2185,7 @@ async function refreshBrowserTopSites() {
 
     let html = '';
     sites.forEach(s => {
-      const faviconUrl = s.domain ? `https://www.google.com/s2/favicons?domain=${s.domain}&sz=32` : '';
+      const faviconUrl = '/static/site-icon.svg';
       html += `
         <tr>
           <td>
@@ -1540,8 +2209,8 @@ async function refreshBrowserTopSites() {
 // ─── Dev Files & AI ────────────────────────────────────────────────────────────
 async function refreshDevFiles() {
   try {
-    const days = parseInt(document.getElementById('file-days').value) || 1;
-    const files = await fetch(`/api/files/recent?days=${days}&limit=30`).then(r => r.json());
+    const days = parseInt(document.getElementById('file-days').value) || periodDays();
+    const files = await apiGet('/api/files/recent', {days, limit: 30});
     const list = document.getElementById('file-list');
     document.getElementById('dev-stat-files').textContent = files.length;
     if (!files.length) {
@@ -1583,7 +2252,7 @@ async function refreshDevFiles() {
 
 async function refreshHeatmap() {
   try {
-    const data = await fetch('/api/files/heatmap?days=56').then(r => r.json());
+    const data = await apiGet('/api/files/heatmap', {days: 365});
     const hm = document.getElementById('heatmap');
     hm.innerHTML = '';
     // Generate last 52 weeks worth of days
@@ -1603,11 +2272,10 @@ async function refreshHeatmap() {
 
 async function refreshLangChart() {
   try {
-    const events = await fetch('/api/events?limit=500').then(r => r.json());
-    const langMap = {};
-    events.forEach(e => { if (e.language) langMap[e.language] = (langMap[e.language] || 0) + (e.duration_sec || 0); });
-    const labels = Object.keys(langMap).filter(k => k);
-    const values = labels.map(k => langMap[k] / 60);
+    const data = await apiGet('/api/file_changes/projects');
+    const langs = (data.languages || []).filter(item => item.language && item.language !== 'Unknown');
+    const labels = langs.map(item => item.language);
+    const values = langs.map(item => item.changes || 0);
     const colors = labels.map(k => LANG_COLORS[k] || '#64748b');
     if (langChartInst) langChartInst.destroy();
     const ctx = document.getElementById('langChart');
@@ -1624,10 +2292,11 @@ async function refreshLangChart() {
 
 async function refreshProjectChart() {
   try {
-    const data = await fetch('/api/projects/summary?days=7').then(r => r.json());
+    const payload = await apiGet('/api/file_changes/projects');
+    const data = payload.projects || [];
     if (!data.length) return;
     const labels = data.map(d => d.project);
-    const values = data.map(d => d.hours);
+    const values = data.map(d => d.changes || d.file_count || 0);
     if (projectChartInst) projectChartInst.destroy();
     const ctx = document.getElementById('projectChart');
     if (!ctx) return;
@@ -1770,14 +2439,15 @@ async function refreshBriefing() {
 
 async function refreshCompanyCharts() {
   try {
-    const data = await fetch('/api/projects/summary?days=7').then(r => r.json());
+    const payload = await apiGet('/api/file_changes/projects');
+    const data = payload.projects || [];
     if (data.length && document.getElementById('companyProjectChart')) {
       if (companyProjectInst) companyProjectInst.destroy();
       companyProjectInst = new Chart(document.getElementById('companyProjectChart').getContext('2d'), {
         type:'bar',
         data:{
           labels:data.map(d => d.project),
-          datasets:[{ label:'Hours', data:data.map(d => d.hours),
+          datasets:[{ label:'Changes', data:data.map(d => d.changes || d.file_count || 0),
             backgroundColor:data.map((_,i) => `hsl(${210+i*25},65%,55%)`), borderRadius:8 }]
         },
         options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
@@ -1794,7 +2464,7 @@ async function refreshCompanyCharts() {
 
 async function refreshCompanyResearch() {
   try {
-    const sessions = await fetch('/api/research/sessions?days=30').then(r => r.json());
+    const sessions = await apiGet('/api/research/sessions', {days: 30});
     const list = document.getElementById('company-research-list');
     if (!sessions.length) { list.innerHTML = '<div class="empty-state">No research activity in the last 7 days.</div>'; return; }
     list.innerHTML = sessions.slice(0, 5).map(s => {
@@ -1820,7 +2490,7 @@ async function saveSession() {
 // ─── Company Dynamic Data ────────────────────────────────────────────────────
 async function refreshCompanyMeetings() {
   try {
-    const data = await fetch('/api/meetings?days=1').then(r => r.json());
+    const data = await apiGet('/api/meetings', {days: 1});
     const list = document.getElementById('co-meetings-list');
     if (!list) return;
     if (!data.length) { list.innerHTML = '<div class="empty-state">No meetings detected today</div>'; return; }
@@ -1844,7 +2514,7 @@ async function refreshCompanyMeetings() {
 
 async function refreshCompanyInsights() {
   try {
-    const data = await fetch('/api/insights?days=7').then(r => r.json());
+    const data = await apiGet('/api/insights', {days: 7});
     const list = document.getElementById('co-insights-list');
     if (!list) return;
     if (!data.length) { list.innerHTML = '<div class="empty-state">Insights will appear as you work</div>'; return; }
@@ -1854,9 +2524,9 @@ async function refreshCompanyInsights() {
         <div style="display:flex;width:100%;margin-bottom:4px">
           <span class="activity-time">${t}</span>
           <span style="flex:1;font-size:.82rem;font-weight:500">${i.app || ''}</span>
-          <span class="cat-badge" style="background:rgba(16,185,129,.15);color:var(--green)">${i.keywords || 'Insight'}</span>
+          <span class="cat-badge" style="background:rgba(16,185,129,.15);color:var(--green)">${escapeHtml(i.topic || i.keywords || 'Insight')}</span>
         </div>
-        <div style="font-size:0.82rem;color:var(--muted2)">${(i.summary || '').substring(0, 120)}</div>
+        <div style="font-size:0.82rem;color:var(--muted2)">${escapeHtml((i.insight_text || i.summary || '').substring(0, 160))}</div>
       </div>`;
     }).join('');
   } catch(e) {}
@@ -1865,9 +2535,9 @@ async function refreshCompanyInsights() {
 async function refreshCompanyStats() {
   try {
     const [cats, files, meetings] = await Promise.all([
-      fetch('/api/categories').then(r => r.json()),
-      fetch('/api/files/recent?days=1&limit=200').then(r => r.json()),
-      fetch('/api/meetings?days=1').then(r => r.json()),
+      apiGet('/api/categories'),
+      apiGet('/api/files/recent', {days: 1, limit: 200}),
+      apiGet('/api/meetings', {days: 1}),
     ]);
     const total = cats.reduce((s,c) => s+c.seconds, 0) / 3600;
     document.getElementById('co-hours').textContent = total.toFixed(2);
@@ -1881,7 +2551,7 @@ async function exportExcel(period) {
   const statusEl = document.getElementById('excel-export-status');
   if (statusEl) statusEl.textContent = '⏳ Generating Excel file…';
   try {
-    const response = await fetch(`/api/export/excel?period=${period}`);
+    const response = await fetch(apiUrl('/api/export/excel', {period}));
     if (!response.ok) throw new Error('Export failed');
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -1904,7 +2574,7 @@ async function openExcel(period) {
   const statusEl = document.getElementById('excel-export-status');
   if (statusEl) statusEl.textContent = '⏳ Opening in Excel…';
   try {
-    const data = await fetch(`/api/export/excel/open?period=${period}`).then(r => r.json());
+    const data = await fetch(apiUrl('/api/export/excel/open', {period})).then(r => r.json());
     if (data.status === 'opened') {
       if (statusEl) statusEl.textContent = `✅ Opened: ${data.path}`;
       showToast('📂 Excel opened!', 'success');
@@ -1917,41 +2587,468 @@ async function openExcel(period) {
   }
 }
 
+// ─── FILE CHANGES AND PROJECTS TAB ────────────────────────────────────────────
+async function refreshFileChanges() {
+  const tbody = document.getElementById('file-changes-tbody');
+  const state = document.getElementById('file-changes-state');
+  const wrap = document.getElementById('file-changes-wrap');
+  if (!tbody) return;
+  setState(state, 'loading', 'Loading filesystem events…');
+  wrap.style.display = 'none';
+  try {
+    const data = await apiGet('/api/file_changes', {
+      event_type: (document.getElementById('file-event-filter') || {}).value || '',
+      search: (document.getElementById('file-search') || {}).value || '',
+      limit: 300,
+    });
+    const changes = data.changes || [];
+    const stat = document.getElementById('files-stat-changes');
+    if (stat) stat.textContent = changes.length;
+    if (!changes.length) {
+      setState(state, '', '<strong>No file changes in this scope.</strong><br>Add a development root in Settings and Privacy and make sure the watcher is running.');
+      return;
+    }
+    state.innerHTML = '';
+    wrap.style.display = '';
+    tbody.innerHTML = changes.map(change => {
+      const when = change.timestamp ? new Date(change.timestamp).toLocaleString() : '—';
+      const file = change.file_name || change.relative_path || change.file_path || '—';
+      const project = change.project || '—';
+      const language = change.language || '—';
+      const source = change.source || change.attribution || 'watcher';
+      return `<tr>
+        <td class="mono">${escapeHtml(when)}</td>
+        <td>${eventBadge(change.event_type)}</td>
+        <td>${workspaceBadge(change.workspace)}</td>
+        <td>${escapeHtml(project)}</td>
+        <td><div class="truncate" title="${escapeHtml(change.file_path || file)}">${escapeHtml(file)}</div><div class="mono" style="color:var(--muted)">${escapeHtml(change.relative_path || '')}</div></td>
+        <td>${escapeHtml(language)}</td>
+        <td class="mono">${escapeHtml(source)}</td>
+      </tr>`;
+    }).join('');
+  } catch (error) {
+    setState(state, 'error', `Could not load file changes: ${escapeHtml(error.message || error)}`);
+  }
+}
+
+async function refreshFileProjects() {
+  const emptyProjects = document.getElementById('files-project-empty');
+  const emptyLanguages = document.getElementById('files-lang-empty');
+  try {
+    const data = await apiGet('/api/file_changes/projects');
+    const projects = data.projects || [];
+    const languages = (data.languages || []).filter(item => item.language && item.language !== 'Unknown');
+    const git = data.git || [];
+    const statProjects = document.getElementById('files-stat-projects');
+    const statLanguages = document.getElementById('files-stat-languages');
+    const statCommits = document.getElementById('files-stat-commits');
+    if (statProjects) statProjects.textContent = projects.length;
+    if (statLanguages) statLanguages.textContent = languages.length;
+    if (statCommits) statCommits.textContent = git.length;
+
+    if (filesProjectInst) { filesProjectInst.destroy(); filesProjectInst = null; }
+    if (projects.length && document.getElementById('filesProjectChart')) {
+      if (emptyProjects) emptyProjects.style.display = 'none';
+      filesProjectInst = new Chart(document.getElementById('filesProjectChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: projects.slice(0, 10).map(item => item.project),
+          datasets: [{ label: 'Observed changes', data: projects.slice(0, 10).map(item => item.changes || item.file_count || 0),
+            backgroundColor: 'rgba(59,130,246,.65)', borderRadius: 6 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+          scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d45' } },
+                    y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } } },
+          plugins: { legend: { display: false } } },
+      });
+    } else if (emptyProjects) {
+      emptyProjects.style.display = '';
+    }
+
+    if (filesLangInst) { filesLangInst.destroy(); filesLangInst = null; }
+    if (languages.length && document.getElementById('filesLangChart')) {
+      if (emptyLanguages) emptyLanguages.style.display = 'none';
+      filesLangInst = new Chart(document.getElementById('filesLangChart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: languages.map(item => item.language), datasets: [{ data: languages.map(item => item.changes || 0),
+          backgroundColor: languages.map(item => LANG_COLORS[item.language] || '#64748b'), borderWidth: 2, borderColor: '#111827' }] },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#e2e8f0', font: { size: 10 }, boxWidth: 10 } },
+            tooltip: { callbacks: { label: c => ` ${c.label}: ${c.parsed} changes` } } } },
+      });
+    } else if (emptyLanguages) {
+      emptyLanguages.style.display = '';
+    }
+  } catch (_) { /* charts are non-fatal */ }
+}
+
+async function refreshGitCommits() {
+  const list = document.getElementById('git-commits-list');
+  if (!list) return;
+  setState(list, 'loading', 'Loading commits…');
+  try {
+    const data = await apiGet('/api/file_changes/projects');
+    const commits = data.git || [];
+    if (!commits.length) {
+      setState(list, '', 'No git commits recorded in this scope. Commits are stored metadata only — no diffs or file contents.');
+      return;
+    }
+    list.innerHTML = commits.slice(0, 50).map(commit => {
+      const when = commit.timestamp ? new Date(commit.timestamp).toLocaleString() : '';
+      return `<div class="activity-item" style="flex-direction:column;align-items:stretch;gap:4px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:var(--accent)">${escapeHtml((commit.hash || '').slice(0, 10))}</span>
+          <span style="flex:1;font-size:.82rem;font-weight:500">${escapeHtml(commit.message || '(no message)')}</span>
+          ${workspaceBadge(commit.workspace)}
+        </div>
+        <div style="display:flex;gap:12px;font-size:.72rem;color:var(--muted)">
+          <span>${escapeHtml(commit.repo || '')}${commit.branch ? ' · ' + escapeHtml(commit.branch) : ''}</span>
+          <span>${escapeHtml(commit.author || '')}</span>
+          <span class="mono">${escapeHtml(when)}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (error) {
+    setState(list, 'error', `Could not load commits: ${escapeHtml(error.message || error)}`);
+  }
+}
+
+// ─── MEETINGS TAB ─────────────────────────────────────────────────────────────
+async function refreshMeetingsPanel() {
+  const tbody = document.getElementById('meetings-tbody');
+  const state = document.getElementById('meetings-state');
+  const wrap = document.getElementById('meetings-wrap');
+  if (!tbody) return;
+  setState(state, 'loading', 'Loading meetings…');
+  wrap.style.display = 'none';
+  try {
+    const data = await apiGet('/api/meetings', {days: periodDays()});
+    const meetings = Array.isArray(data) ? data : [];
+    document.getElementById('meetings-stat-count').textContent = meetings.length;
+    const totalMinutes = meetings.reduce((sum, item) => sum + Number(item.duration_min || 0), 0);
+    document.getElementById('meetings-stat-minutes').textContent = Math.round(totalMinutes);
+    const platformCounts = {};
+    meetings.forEach(item => { const key = item.platform || item.app || 'Unknown'; platformCounts[key] = (platformCounts[key] || 0) + 1; });
+    const topPlatform = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0];
+    document.getElementById('meetings-stat-platform').textContent = topPlatform ? topPlatform[0] : '—';
+    if (!meetings.length) {
+      setState(state, '', '<strong>No meetings in this scope.</strong><br>Meetings are detected from Teams, Zoom and other conferencing windows.');
+      return;
+    }
+    state.innerHTML = '';
+    wrap.style.display = '';
+    tbody.innerHTML = meetings.map(meeting => {
+      const when = meeting.start_time || meeting.timestamp;
+      const date = when ? new Date(when).toLocaleString() : '—';
+      return `<tr>
+        <td class="mono">${escapeHtml(date)}</td>
+        <td>${escapeHtml(meeting.title || 'Untitled meeting')}</td>
+        <td>${escapeHtml(meeting.platform || meeting.app || '—')}</td>
+        <td>${escapeHtml(formatDuration(meeting.duration_sec))}</td>
+        <td>${workspaceBadge(meeting.workspace)}</td>
+      </tr>`;
+    }).join('');
+  } catch (error) {
+    setState(state, 'error', `Could not load meetings: ${escapeHtml(error.message || error)}`);
+  }
+}
+
+// ─── SETTINGS AND PRIVACY TAB ────────────────────────────────────────────────
+async function refreshSettingsTab() {
+  refreshWatcherStatus();
+  refreshPrivacyRules();
+  refreshWorkspaceRules();
+  refreshStorageStats();
+  try {
+    const data = await fetch('/api/settings').then(r => r.json());
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+    set('set_retention_days', data.retention_days ?? 30);
+    set('set_max_storage_mb', data.max_storage_mb ?? 2048);
+    set('set_watcher_debounce', data.watcher_debounce ?? 1.5);
+    set('set_default_workspace', data.default_workspace || 'company');
+  } catch (_) {}
+}
+
+async function refreshWatcherStatus() {
+  const box = document.getElementById('watcher-status-box');
+  const rootsBox = document.getElementById('watcher-roots');
+  if (!box) return;
+  setState(box, 'loading', 'Checking watcher status…');
+  try {
+    const status = await fetch('/api/watcher/status').then(r => r.json());
+    const running = Boolean(status.running);
+    const available = status.available !== false;
+    const roots = status.roots || [];
+    const error = status.last_error;
+    const lastEvent = status.last_event_at ? new Date(status.last_event_at).toLocaleString() : 'never';
+    box.innerHTML = `
+      <div class="status-line"><span class="dot ${running ? 'ok' : 'bad'}"></span><strong>${running ? 'Running' : 'Stopped'}</strong>
+        <span style="color:var(--muted)">${available ? '· watchdog available' : '· watchdog not installed'}</span></div>
+      <div style="font-size:.78rem;color:var(--muted2);line-height:1.7">
+        Events observed: <strong>${Number(status.events_seen || 0).toLocaleString()}</strong>
+        · recorded: <strong>${Number(status.events_recorded || 0).toLocaleString()}</strong><br>
+        Ignored: <strong>${Number(status.events_ignored || 0).toLocaleString()}</strong>
+        · deduplicated: <strong>${Number(status.events_deduplicated || 0).toLocaleString()}</strong><br>
+        Roots watched: <strong>${roots.length}</strong> · Last event: <strong>${escapeHtml(lastEvent)}</strong><br>
+        Debounce: <strong>${Number(status.debounce_seconds || 0).toFixed(1)}s</strong>
+        ${error ? `<br><span style="color:var(--red)">Last error: ${escapeHtml(error)}</span>` : ''}
+      </div>`;
+    if (rootsBox) {
+      rootsBox.innerHTML = roots.length
+        ? roots.map(root => `<div class="root-item">
+            <span class="ws-badge ws-${escapeHtml(root.workspace || 'development')}">${escapeHtml(root.workspace || 'development')}</span>
+            <code title="${escapeHtml(root.path)}">${escapeHtml(root.path)}</code>
+            <button class="btn btn-ghost btn-sm" onclick="removeWatcherRoot('${escapeHtml(root.path).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">Remove</button>
+          </div>`).join('')
+        : '<div class="empty-state" style="padding:12px">No roots configured.</div>';
+    }
+  } catch (error) {
+    setState(box, 'error', `Watcher status unavailable: ${escapeHtml(error.message || error)}`);
+  }
+}
+
+async function startWatcher() {
+  try { await fetch('/api/watcher/start', {method: 'POST'}); showToast('Watcher started', 'success'); }
+  catch (error) { showToast('Could not start watcher: ' + (error.message || error), 'error'); }
+  refreshWatcherStatus();
+}
+
+async function stopWatcher() {
+  try { await fetch('/api/watcher/stop', {method: 'POST'}); showToast('Watcher stopped', ''); }
+  catch (error) { showToast('Could not stop watcher: ' + (error.message || error), 'error'); }
+  refreshWatcherStatus();
+}
+
+async function addWatcherRoot() {
+  const input = document.getElementById('new-root-path');
+  const path = input ? input.value.trim() : '';
+  if (!path) { showToast('Enter a folder path first', 'error'); return; }
+  try {
+    await apiPost('/api/watcher/roots', {path, workspace: 'development'});
+    if (input) input.value = '';
+    showToast('Development root added', 'success');
+  } catch (error) {
+    showToast('Could not add root: ' + (error.message || error), 'error');
+  }
+  refreshWatcherStatus();
+}
+
+async function removeWatcherRoot(path) {
+  try {
+    await apiDelete('/api/watcher/roots', {path});
+    showToast('Root removed', '');
+  } catch (error) {
+    showToast('Could not remove root: ' + (error.message || error), 'error');
+  }
+  refreshWatcherStatus();
+}
+
+function renderRulePills(title, values) {
+  return `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;font-weight:600">${escapeHtml(title)}</div>
+    <div class="pill-row">${(values || []).length ? values.map(value => `<span class="ws-badge">${escapeHtml(value)}</span>`).join('') : '<span style="font-size:.78rem;color:var(--muted)">None configured.</span>'}</div>`;
+}
+
+async function refreshPrivacyRules() {
+  const box = document.getElementById('privacy-rules-box');
+  if (!box) return;
+  try {
+    const rules = await fetch('/api/privacy/rules').then(r => r.json());
+    const processes = rules.process_blacklist || [];
+    const patterns = rules.window_title_patterns || [];
+    box.className = '';
+    box.innerHTML = renderRulePills('Blocked applications', processes) + renderRulePills('Blocked window-title patterns', patterns);
+  } catch (error) {
+    setState(box, 'error', 'Privacy rules unavailable: ' + escapeHtml(error.message || error));
+  }
+}
+
+async function refreshWorkspaceRules() {
+  const box = document.getElementById('workspace-rules-box');
+  if (!box) return;
+  try {
+    const data = await fetch('/api/workspaces').then(r => r.json());
+    const rules = data.rules || {};
+    box.className = '';
+    const roots = (data.project_roots || []).map(root => `<span class="ws-badge ws-development">${escapeHtml(root)}</span>`).join(' ') || '<span style="font-size:.78rem;color:var(--muted)">No development roots.</span>';
+    box.innerHTML = `
+      <div style="font-size:.8rem;color:var(--muted2);line-height:1.8">
+        Canonical workspaces: <strong>${(data.workspaces || []).map(escapeHtml).join(', ')}</strong><br>
+        Query scopes: <strong>${(data.scopes || []).map(escapeHtml).join(', ')}</strong><br>
+        Default scope: <strong>${escapeHtml(data.default_scope || 'company')}</strong>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px;font-weight:600">Development roots</div>
+      <div class="pill-row">${roots}</div>
+      ${renderRulePills('Company title keywords', rules.company_title_keywords || [])}
+      ${renderRulePills('Development title keywords', rules.development_title_keywords || [])}
+      ${renderRulePills('Development roots', rules.development_roots || [])}`;
+  } catch (error) {
+    setState(box, 'error', 'Workspace rules unavailable: ' + escapeHtml(error.message || error));
+  }
+}
+
+async function refreshStorageStats() {
+  const box = document.getElementById('storage-stats-box');
+  if (!box) return;
+  try {
+    const stats = await fetch('/api/storage/stats').then(r => r.json());
+    box.className = '';
+    box.innerHTML = `<div class="grid g2" style="gap:10px;text-align:left">
+      <div><div class="stat-value" style="font-size:1.4rem">${Number(stats.total_frames || 0).toLocaleString()}</div><div class="stat-label">screen frames</div></div>
+      <div><div class="stat-value" style="font-size:1.4rem">${Number(stats.total_size_mb || 0).toFixed(1)}</div><div class="stat-label">MB stored</div></div>
+      <div><div class="stat-value" style="font-size:1.4rem">${Number(stats.embedding_coverage_pct || 0).toFixed(0)}%</div><div class="stat-label">embedding coverage</div></div>
+      <div><div class="stat-value" style="font-size:1.4rem">${Number(stats.dedup_rate_pct || 0).toFixed(0)}%</div><div class="stat-label">duplicates skipped</div></div>
+    </div>`;
+  } catch (error) {
+    setState(box, 'error', 'Storage statistics unavailable: ' + escapeHtml(error.message || error));
+  }
+}
+
+async function savePrivacySettings() {
+  const payload = {
+    retention_days: Number((document.getElementById('set_retention_days') || {}).value || 30),
+    max_storage_mb: Number((document.getElementById('set_max_storage_mb') || {}).value || 2048),
+    watcher_debounce: Number((document.getElementById('set_watcher_debounce') || {}).value || 1.5),
+    default_workspace: (document.getElementById('set_default_workspace') || {}).value || 'company',
+  };
+  try {
+    await apiPost('/api/settings', payload);
+    showToast('Settings saved', 'success');
+    refreshStorageStats();
+  } catch (error) {
+    showToast('Could not save settings: ' + (error.message || error), 'error');
+  }
+}
+
+async function exportPrivacyData() {
+  try {
+    const response = await fetch(apiUrl('/api/privacy/export'));
+    if (!response.ok) throw new Error('Export failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WorkSense_export_${appState.workspace}_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Metadata export downloaded (no file contents)', 'success');
+  } catch (error) {
+    showToast('Export failed: ' + (error.message || error), 'error');
+  }
+}
+
+async function deleteWorkspaceData() {
+  const confirmBox = document.getElementById('delete-confirm');
+  const status = document.getElementById('delete-status');
+  if (!confirmBox || !confirmBox.checked) {
+    showToast('Tick the confirmation box first', 'error');
+    return;
+  }
+  if (appState.workspace === 'combined' || appState.workspace === 'all') {
+    showToast('Choose one concrete workspace before deleting', 'error');
+    return;
+  }
+  if (!window.confirm(`Permanently delete ${WORKSPACE_LABELS[appState.workspace]} data for the selected period?`)) return;
+  if (status) status.textContent = 'Deleting…';
+  try {
+    const result = await apiPost('/api/privacy/delete', {
+      confirm: true,
+      workspace: appState.workspace,
+      period: appState.period,
+      start: appState.start,
+      end: appState.end,
+    });
+    const deleted = result.deleted || {};
+    const summary = Object.entries(deleted).map(([table, count]) => `${table}: ${count}`).join(', ');
+    if (status) status.textContent = summary ? `Deleted — ${summary}` : 'No matching records were found.';
+    showToast('Selected records deleted', 'success');
+    confirmBox.checked = false;
+  } catch (error) {
+    if (status) status.textContent = 'Delete failed: ' + (error.message || error);
+    showToast('Delete failed: ' + (error.message || error), 'error');
+  }
+}
+
+async function rebuildSearchIndex() {
+  try {
+    const response = await fetch('/api/search/rebuild_index');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Rebuild failed');
+    showToast('Search index rebuilt', 'success');
+  } catch (error) {
+    showToast('Rebuild failed: ' + (error.message || error), 'error');
+  }
+}
+
 // ─── REPORTS TAB ──────────────────────────────────────────────────────────────
+function selectedReportPeriod() {
+  const select = document.getElementById('report-period');
+  return select && select.value ? select.value : appState.period;
+}
+
 async function generateReport() {
-  const period = document.getElementById('report-period').value;
+  const period = selectedReportPeriod();
   const output = document.getElementById('report-output');
-  output.textContent = '⏳ Generating report…';
+  output.innerHTML = '<div class="state-box loading">Generating Markdown, PDF and Word reports…</div>';
   try {
     const [content, files] = await Promise.all([
-      fetch(`/api/report_content?period=${period}`).then(r => r.json()),
-      fetch(`/api/generate_report?period=${period}`).then(r => r.json()),
+      apiGet('/api/report_content', {period}),
+      apiGet('/api/generate_report', {period, formats: 'md,pdf,docx'}),
     ]);
     output.textContent = content.report;
     lastReportPaths = files;
-    document.getElementById('download-md').style.display = '';
-    document.getElementById('download-pdf').style.display = '';
-    showToast('✓ Report generated!', 'success');
+    ['md', 'pdf', 'docx'].forEach(fmt => {
+      const el = document.getElementById('download-' + fmt);
+      if (el) el.style.display = '';
+    });
+    showToast('✓ Report generated for ' + (WORKSPACE_LABELS[content.workspace] || content.workspace), 'success');
   } catch(e) {
-    output.textContent = 'Error: ' + e;
+    output.innerHTML = `<div class="state-box error">Report generation failed: ${escapeHtml(e.message || e)}</div>`;
   }
 }
 
 function downloadReport(fmt) {
   if (lastReportPaths[fmt]) showToast(`Report saved to: ${lastReportPaths[fmt]}`, 'success');
+  else showToast('Generate a report first.', 'error');
+}
+
+async function exportExcelFromReports() {
+  const period = selectedReportPeriod();
+  try {
+    const response = await fetch(apiUrl('/api/export/excel', {period}));
+    if (!response.ok) throw new Error('Export failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WorkSense_${appState.workspace}_${period}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📊 Excel workbook downloaded', 'success');
+  } catch(e) {
+    showToast('❌ Excel export failed: ' + (e.message || e), 'error');
+  }
+}
+
+function refreshReportScope() {
+  updateFilterSummary();
+  refreshScreenshots2();
 }
 
 async function sendReportByEmail() {
-  const period = document.getElementById('report-period').value;
+  const period = selectedReportPeriod();
   const btn = document.getElementById('btn-email-report');
   btn.textContent = '⏳ Sending…'; btn.disabled = true;
   try {
-    const data = await fetch(`/api/send_email?period=${period}`, {method:'POST'}).then(r => r.json());
+    const data = await apiPost('/api/send_email', {period});
     if (data.status === 'sent') showToast('📧 Report emailed!', 'success');
     else if (data.status === 'not_configured') showToast('⚠️ Email not configured', '');
     else showToast('❌ Email failed: ' + (data.detail || ''), 'error');
   } catch(e) {
-    showToast('❌ Email error: ' + e, 'error');
+    showToast('❌ Email error: ' + (e.message || e), 'error');
   } finally {
     btn.textContent = '📧 Email Report'; btn.disabled = false;
   }
@@ -1959,18 +3056,36 @@ async function sendReportByEmail() {
 
 async function refreshScreenshots2() {
   try {
-    const shots = await fetch('/api/screenshots').then(r => r.json());
+    const shots = await apiGet('/api/screenshots');
     const wrap = document.getElementById('screenshots-wrap-2');
-    if (!shots.length) { wrap.innerHTML = '<div class="empty-state">No screenshots yet.</div>'; return; }
+    if (!wrap) return;
+    if (!shots.length) {
+      const wsLabel = WORKSPACE_LABELS[appState.workspace] || appState.workspace;
+      const showAll = appState.workspace !== 'all'
+        ? ' <button class="btn btn-secondary btn-sm" onclick="showAllWorkspaces()">Show all workspaces</button>'
+        : '';
+      wrap.innerHTML = `<div class="empty-state">No screenshots in ${escapeHtml(wsLabel)} for this period.${showAll}</div>`;
+      lastScreenshot2Signature = 'empty:' + appState.workspace;
+      return;
+    }
+    const signature = shots.map(s => `${s.id}:${s.workspace || ''}:${s.summary || ''}`).join('|');
+    if (signature === lastScreenshot2Signature) return;
+    lastScreenshot2Signature = signature;
     wrap.innerHTML = `<div class="screenshot-grid">${shots.map(s => {
       const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
-      const label = s.summary || s.source || 'Screen capture';
+      const rawLabel = s.summary || s.source || 'Screen capture';
+      const label = escapeHtml(rawLabel);
+      const shortLabel = escapeHtml(rawLabel.substring(0,35));
+      const ws = WORKSPACE_LABELS[s.workspace] || s.workspace || '';
       return `<div class="screenshot-card" title="${label}" style="cursor:pointer;" onclick="window.open('/api/screenshot/${s.id}')">
-        <img src="/api/screenshot/${s.id}?t=${Date.now()}" alt="Screen" loading="lazy" onerror="this.parentElement.style.display='none'">
-        <div class="screenshot-meta"><strong>${time}</strong><br>${label.substring(0,35)}</div>
+        <img src="/api/screenshot/${s.id}" alt="Screen" onerror="this.parentElement.style.display='none'">
+        <div class="screenshot-meta"><strong>${time}</strong>${ws ? ' · ' + escapeHtml(ws) : ''}<br>${shortLabel}</div>
       </div>`;
     }).join('')}</div>`;
-  } catch(e) {}
+  } catch(e) {
+    const wrap = document.getElementById('screenshots-wrap-2');
+    if (wrap) wrap.innerHTML = `<div class="empty-state">Could not load screenshots: ${escapeHtml(e.message || e)}</div>`;
+  }
 }
 
 // ─── Daily Notes ─────────────────────────────────────────────────────────────
@@ -2016,7 +3131,7 @@ async function deleteNote(id) {
 
 async function refreshNotes() {
   try {
-    const notes = await fetch('/api/notes?days=7').then(r => r.json());
+    const notes = await fetch(apiUrl('/api/notes', {days: 7})).then(r => r.json());
     const wrap = document.getElementById('notes-timeline');
     if (!notes.length) {
       wrap.innerHTML = '<div class="empty-state">No notes yet. Add one above!</div>';
@@ -2216,7 +3331,7 @@ async function searchMemory() {
   const resDiv = document.getElementById('memory-results');
   resDiv.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">🔍 Searching your visual memory...</div>';
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(input)}`).then(r => r.json());
+    const res = await fetch(apiUrl('/api/search', {q: input})).then(r => r.json());
     if (res.results && res.results.length > 0) {
       resDiv.innerHTML = res.results.map(r => {
         const cat = CATEGORY_CONFIG[r.detected_category] || CATEGORY_CONFIG.unknown;
@@ -2261,20 +3376,41 @@ async function reanalyzeFrames() {
 
 async function loadTimeline() {
   try {
-    const res = await fetch('/api/timeline?limit=200').then(r => r.json());
+    const res = await fetch(apiUrl('/api/timeline', {limit: 200})).then(r => r.json());
     timelineFrames = res.frames || [];
     const counterEl = document.getElementById('timeline-frame-counter');
     if (counterEl) counterEl.textContent = `${timelineFrames.length} frames loaded`;
     
+    const viewer = document.getElementById('timeline-viewer');
+    const empty = document.getElementById('timeline-empty');
+    const activityLog = document.getElementById('timeline-activity-log');
     if (timelineFrames.length > 0) {
+      if (viewer) viewer.style.display = '';
+      if (empty) empty.style.display = 'none';
+      if (activityLog) activityLog.style.display = '';
       const slider = document.getElementById('timeline-slider');
       slider.max = timelineFrames.length - 1;
       slider.value = 0; // Start at newest (index 0 = most recent)
       onScrubTimeline();
       renderActivityStrip();
     } else {
-      const card = document.getElementById('timeline-activity-card');
-      if (card) card.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">No frames captured yet. Enable screen capture to start building your timeline.</div>';
+      if (viewer) viewer.style.display = 'none';
+      if (empty) empty.style.display = '';
+      if (activityLog) activityLog.style.display = 'none';
+      const img = document.getElementById('timeline-image');
+      if (img) img.removeAttribute('src');
+      const svg = document.getElementById('timeline-svg');
+      if (svg) svg.innerHTML = '';
+      const strip = document.getElementById('timeline-activity-strip');
+      if (strip) strip.innerHTML = '';
+      const summary = document.getElementById('tl-activity-summary');
+      if (summary) summary.textContent = '';
+      const time = document.getElementById('tl-activity-time');
+      if (time) time.textContent = '';
+      const slider = document.getElementById('timeline-slider');
+      if (slider) { slider.max = 0; slider.value = 0; }
+      const label = document.getElementById('tl-slider-label');
+      if (label) label.textContent = 'Frame 0/0';
     }
   } catch (e) {
     console.error("Timeline error:", e);

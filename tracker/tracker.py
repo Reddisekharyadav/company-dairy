@@ -4,33 +4,36 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 from database.session import SessionLocal
-from database.models import Event, BrowserHistory, FileEdit, GitActivity, Report, ScreenFrame
+from database.models import (
+    ActivityInsight,
+    BrowserHistory,
+    DailyNote,
+    Event,
+    FileChangeEvent,
+    FileEdit,
+    GitActivity,
+    Meeting,
+    OCRText,
+    Report,
+    ResearchSession,
+    ScreenFrame,
+    SearchQuery,
+    SessionSnapshot,
+)
 from tracker.active_window import get_active_window
 from tracker.categorizer import categorize_activity, extract_website_name
+from tracker.file_types import EXT_LANG_MAP, get_language
 from tracker.input_tracker import input_tracker
 import psutil
 import logging
 import os
 import re
+from pathlib import Path
 from sqlalchemy.orm import Session
-from config.settings import SESSION_ID
+from config.settings import SESSION_ID, settings
+from config.workspace_rules import classifier
 
 log = logging.getLogger("tracker")
-
-EXT_LANG_MAP = {
-    '.py': 'Python',
-    '.js': 'JavaScript',
-    '.ts': 'TypeScript',
-    '.java': 'Java',
-    '.c': 'C',
-    '.cpp': 'C++',
-    '.cs': 'C#',
-    '.go': 'Go',
-    '.rb': 'Ruby',
-    '.php': 'PHP',
-    '.rs': 'Rust',
-    '.md': 'Markdown',
-}
 
 
 class ActivityTracker:
@@ -59,73 +62,137 @@ class ActivityTracker:
         return cpu < 1.0
 
     def _guess_language_from_filename(self, filename: str) -> Optional[str]:
-        if not filename:
-            return None
-        _, ext = os.path.splitext(filename)
-        return EXT_LANG_MAP.get(ext.lower())
+        return get_language(filename) if filename else None
 
-    def _cleanup_old_data(self, session: Session, retention_days: int = 30, max_storage_mb: int = 2048):
-        """Deletes data older than retention_days from database and disk, and prunes storage if exceeding limit."""
-        cutoff_date = datetime.now() - timedelta(days=retention_days)
+    def _cleanup_old_data(self, session: Session, retention_days: int = 30,
+                          max_storage_mb: int = 2048, screenshot_dirs=None):
+        """Delete expired activity, screenshot files and enforce the storage cap."""
+        cutoff_date = datetime.now() - timedelta(days=max(1, int(retention_days)))
+        deleted = {}
+
+        # Screenshot roots are computed first because database rows must never
+        # be able to delete an arbitrary file outside these directories.
+        if screenshot_dirs is None:
+            root_paths = []
+            appdata_scr = os.path.join(
+                os.environ.get("APPDATA") or os.path.expanduser("~"),
+                "WorkSense", "screenshots",
+            )
+            if os.path.exists(appdata_scr):
+                root_paths.append(appdata_scr)
+            local_scr = os.path.join(os.getcwd(), "screenshots")
+            if os.path.exists(local_scr) and local_scr != appdata_scr:
+                root_paths.append(local_scr)
+        else:
+            root_paths = [str(p) for p in screenshot_dirs]
+        allowed_roots = []
+        for root in root_paths:
+            try:
+                allowed_roots.append(Path(root).resolve())
+            except OSError:
+                continue
+
+        def remove_screenshot(raw_path):
+            if not raw_path:
+                return False
+            try:
+                candidate = Path(raw_path).resolve(strict=True)
+            except (OSError, ValueError):
+                return False
+            if not candidate.is_file():
+                return False
+            if not any(candidate.is_relative_to(root) for root in allowed_roots):
+                return False
+            try:
+                candidate.unlink()
+                return True
+            except OSError:
+                return False
+
         try:
-            # 1. Delete old ScreenFrame records and their files
+            # 1. Delete old ScreenFrame records and their files.
             old_frames = session.query(ScreenFrame).filter(ScreenFrame.timestamp < cutoff_date).all()
             deleted_frames_count = 0
             for frame in old_frames:
-                if frame.screenshot_path and os.path.exists(frame.screenshot_path):
-                    try:
-                        os.remove(frame.screenshot_path)
-                    except OSError:
-                        pass
+                remove_screenshot(frame.screenshot_path)
                 session.delete(frame)
                 deleted_frames_count += 1
+            if deleted_frames_count:
+                deleted["screen_frames"] = deleted_frames_count
 
-            # 2. Delete other old DB records
-            deleted_events = session.query(Event).filter(Event.timestamp < cutoff_date).delete()
-            deleted_bh = session.query(BrowserHistory).filter(BrowserHistory.timestamp < cutoff_date).delete()
-            deleted_fe = session.query(FileEdit).filter(FileEdit.timestamp < cutoff_date).delete()
-            deleted_ga = session.query(GitActivity).filter(GitActivity.timestamp < cutoff_date).delete()
-            deleted_reports = session.query(Report).filter(Report.created_at < cutoff_date).delete()
+            # 2. Delete old OCR rows and their files.
+            old_ocr = session.query(OCRText).filter(OCRText.timestamp < cutoff_date).all()
+            for row in old_ocr:
+                remove_screenshot(row.screenshot_path)
+                session.delete(row)
+            if old_ocr:
+                deleted["ocr"] = len(old_ocr)
+
+            # 3. Delete other old activity records.
+            old_notes = session.query(DailyNote).filter(DailyNote.timestamp < cutoff_date).all()
+            for note in old_notes:
+                remove_screenshot(note.screenshot_path)
+                session.delete(note)
+            if old_notes:
+                deleted["daily_notes"] = len(old_notes)
+
+            specs = [
+                (Event, Event.timestamp),
+                (BrowserHistory, BrowserHistory.timestamp),
+                (FileEdit, FileEdit.timestamp),
+                (FileChangeEvent, FileChangeEvent.timestamp),
+                (GitActivity, GitActivity.timestamp),
+                (Meeting, Meeting.start_time),
+                (SearchQuery, SearchQuery.timestamp),
+                (ResearchSession, ResearchSession.start_time),
+                (ActivityInsight, ActivityInsight.timestamp),
+                (Report, Report.created_at),
+                (SessionSnapshot, SessionSnapshot.created_at),
+            ]
+            for model, column in specs:
+                count = (session.query(model).filter(column < cutoff_date)
+                         .delete(synchronize_session=False))
+                if count:
+                    deleted[model.__tablename__] = count
+
             session.commit()
-            
-            total_deleted = deleted_events + deleted_bh + deleted_fe + deleted_ga + deleted_reports + deleted_frames_count
+
+            total_deleted = sum(deleted.values())
             if total_deleted > 0:
-                log.info("Cleanup: Deleted %d old DB records older than %s", total_deleted, cutoff_date.date())
+                log.info("Cleanup: Deleted %d old DB records older than %s",
+                         total_deleted, cutoff_date.date())
 
-            # 3. Clean screenshot directories (AppData WorkSense/screenshots & local screenshots)
-            dirs_to_clean = []
-            appdata_scr = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "WorkSense", "screenshots")
-            if os.path.exists(appdata_scr):
-                dirs_to_clean.append(appdata_scr)
-            local_scr = os.path.join(os.getcwd(), 'screenshots')
-            if os.path.exists(local_scr) and local_scr != appdata_scr:
-                dirs_to_clean.append(local_scr)
-
-            for sdir in dirs_to_clean:
-                deleted_imgs = 0
+            # 4. Clean screenshot directories and enforce the storage cap.
+            for sdir in root_paths:
+                if not os.path.isdir(sdir):
+                    continue
                 all_files = []
                 for filename in os.listdir(sdir):
                     filepath = os.path.join(sdir, filename)
-                    if os.path.isfile(filepath):
-                        mtime = os.path.getmtime(filepath)
-                        size = os.path.getsize(filepath)
-                        all_files.append((filepath, mtime, size))
-                        if datetime.fromtimestamp(mtime) < cutoff_date:
-                            try:
-                                os.remove(filepath)
-                                deleted_imgs += 1
-                            except OSError:
-                                pass
+                    try:
+                        if os.path.isfile(filepath):
+                            mtime = os.path.getmtime(filepath)
+                            size = os.path.getsize(filepath)
+                            all_files.append((filepath, mtime, size))
+                    except OSError:
+                        continue
+
+                deleted_imgs = 0
+                for filepath, mtime, _size in list(all_files):
+                    if datetime.fromtimestamp(mtime) < cutoff_date:
+                        try:
+                            os.remove(filepath)
+                            deleted_imgs += 1
+                        except OSError:
+                            pass
                 if deleted_imgs > 0:
                     log.info("Cleanup: Deleted %d old screenshots from %s", deleted_imgs, sdir)
 
-                # 4. Storage cap check: if folder exceeds max_storage_mb, remove oldest files
                 try:
                     remaining_files = [(p, m, s) for p, m, s in all_files if os.path.exists(p)]
                     total_mb = sum(s for _, _, s in remaining_files) / (1024 * 1024)
                     if total_mb > max_storage_mb:
-                        # Sort by mtime ascending (oldest first)
-                        remaining_files.sort(key=lambda x: x[1])
+                        remaining_files.sort(key=lambda item: item[1])
                         freed_mb = 0
                         pruned_count = 0
                         for fpath, _, fsize in remaining_files:
@@ -137,13 +204,16 @@ class ActivityTracker:
                                 pruned_count += 1
                             except OSError:
                                 pass
-                        log.info("Storage cap: Pruned %d screenshots (freed %.1f MB) in %s", pruned_count, freed_mb, sdir)
+                        log.info("Storage cap: Pruned %d screenshots (freed %.1f MB) in %s",
+                                 pruned_count, freed_mb, sdir)
                 except Exception as cap_err:
                     log.debug("Storage cap check error: %s", cap_err)
 
+            return deleted
         except Exception as e:
             log.error("Cleanup error: %s", e)
             session.rollback()
+            return deleted
 
     def _run(self):
         session: Session = SessionLocal()
@@ -162,7 +232,11 @@ class ActivityTracker:
                 
                 # Run cleanup once a day
                 if (now - last_cleanup).total_seconds() > 86400:
-                    self._cleanup_old_data(session, retention_days=30)
+                    self._cleanup_old_data(
+                        session,
+                        retention_days=getattr(settings, "retention_days", 30),
+                        max_storage_mb=getattr(settings, "max_storage_mb", 2048),
+                    )
                     last_cleanup = now
                     
                 proc_name, title = get_active_window()
@@ -234,6 +308,12 @@ class ActivityTracker:
         category = categorize_activity(proc_name or '', title or '')
         website = extract_website_name(title or '', proc_name or '')
         current_input_state = input_tracker.get_current_state()
+        workspace = classifier.classify_application(
+            process=proc_name or '',
+            title=title or '',
+            url=website,
+            path=opened_file if opened_file and os.path.isabs(opened_file) else None,
+        )
 
         ev = Event(
             timestamp=datetime.now(),
@@ -249,7 +329,8 @@ class ActivityTracker:
             idle=idle,
             category=category,
             website=website,
-            input_state=current_input_state
+            input_state=current_input_state,
+            workspace=workspace,
         )
         session.add(ev)
         session.commit()

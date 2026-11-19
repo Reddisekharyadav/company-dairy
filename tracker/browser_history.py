@@ -20,6 +20,17 @@ from config.settings import SESSION_ID
 
 log = logging.getLogger('browser_history')
 
+
+def _classify_visit(url: str, title: str) -> str:
+    """Classify a single visit; a browser itself is never permanently classified."""
+    try:
+        from config.workspace_rules import classifier
+        return classifier.classify_application(
+            process='browser', title=title or '', url=url or ''
+        )
+    except Exception:
+        return 'unclassified'
+
 # ── Site name mapping (domain → human-readable name) ──────────────────────────
 DOMAIN_SITE_MAP = {
     'github.com': 'GitHub',
@@ -430,6 +441,7 @@ class BrowserHistoryTracker:
                     browser='Chrome',
                     category=_get_category(domain),
                     session_date=entry['timestamp'].strftime('%Y-%m-%d'),
+                    workspace=_classify_visit(entry['url'], entry['title']),
                 )
                 session.add(bh)
                 new_count += 1
@@ -444,6 +456,7 @@ class BrowserHistoryTracker:
                 if not domain:
                     continue
                 bh = BrowserHistory(
+                    session_id=SESSION_ID,
                     timestamp=entry['timestamp'],
                     url=entry['url'][:2048],
                     title=entry['title'][:1024] if entry['title'] else None,
@@ -454,6 +467,7 @@ class BrowserHistoryTracker:
                     browser='Edge',
                     category=_get_category(domain),
                     session_date=entry['timestamp'].strftime('%Y-%m-%d'),
+                    workspace=_classify_visit(entry['url'], entry['title']),
                 )
                 session.add(bh)
                 new_count += 1
@@ -468,6 +482,7 @@ class BrowserHistoryTracker:
                 if not domain:
                     continue
                 bh = BrowserHistory(
+                    session_id=SESSION_ID,
                     timestamp=entry['timestamp'],
                     url=entry['url'][:2048],
                     title=entry['title'][:1024] if entry['title'] else None,
@@ -478,6 +493,7 @@ class BrowserHistoryTracker:
                     browser='Brave',
                     category=_get_category(domain),
                     session_date=entry['timestamp'].strftime('%Y-%m-%d'),
+                    workspace=_classify_visit(entry['url'], entry['title']),
                 )
                 session.add(bh)
                 new_count += 1
@@ -492,6 +508,7 @@ class BrowserHistoryTracker:
                 if not domain:
                     continue
                 bh = BrowserHistory(
+                    session_id=SESSION_ID,
                     timestamp=entry['timestamp'],
                     url=entry['url'][:2048],
                     title=entry['title'][:1024] if entry['title'] else None,
@@ -502,6 +519,7 @@ class BrowserHistoryTracker:
                     browser='Firefox',
                     category=_get_category(domain),
                     session_date=entry['timestamp'].strftime('%Y-%m-%d'),
+                    workspace=_classify_visit(entry['url'], entry['title']),
                 )
                 session.add(bh)
                 new_count += 1
@@ -526,17 +544,19 @@ class BrowserHistoryTracker:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def get_history(self, days: int = 1, limit: int = 100) -> list[dict]:
+    def get_history(self, days: int = 1, limit: int = 100, workspace: str | None = None) -> list[dict]:
         """Return browser history entries for the API."""
         try:
             from database.session import SessionLocal
             from database.models import BrowserHistory
+            from config.workspace_rules import scope_workspaces
             since = datetime.now() - timedelta(days=days)
             session = SessionLocal()
             try:
-                rows = (session.query(BrowserHistory)
-                        .filter(BrowserHistory.timestamp >= since)
-                        .order_by(BrowserHistory.timestamp.desc())
+                query = session.query(BrowserHistory).filter(BrowserHistory.timestamp >= since)
+                if workspace:
+                    query = query.filter(BrowserHistory.workspace.in_(scope_workspaces(workspace)))
+                rows = (query.order_by(BrowserHistory.timestamp.desc())
                         .limit(limit).all())
                 return [{
                     'id': r.id,
@@ -546,6 +566,7 @@ class BrowserHistoryTracker:
                     'domain': r.domain,
                     'browser': r.browser,
                     'category': r.category,
+                    'workspace': r.workspace,
                     'visit_count': r.visit_count,
                     'timestamp': r.timestamp.isoformat() if r.timestamp else None,
                 } for r in rows]
@@ -555,24 +576,27 @@ class BrowserHistoryTracker:
             log.warning('get_history error: %s', e)
             return []
 
-    def get_top_sites(self, days: int = 7, limit: int = 20) -> list[dict]:
+    def get_top_sites(self, days: int = 7, limit: int = 20, workspace: str | None = None) -> list[dict]:
         """Return most visited sites with total visit count."""
         try:
             from database.session import SessionLocal
             from database.models import BrowserHistory
+            from config.workspace_rules import scope_workspaces
             from sqlalchemy import func
             since = datetime.now() - timedelta(days=days)
             session = SessionLocal()
             try:
-                rows = (session.query(
+                query = (session.query(
                             BrowserHistory.site_name,
                             BrowserHistory.domain,
                             BrowserHistory.category,
                             func.count(BrowserHistory.id).label('visits'),
                             func.sum(BrowserHistory.duration_sec).label('total_sec'),
                         )
-                        .filter(BrowserHistory.timestamp >= since)
-                        .group_by(BrowserHistory.domain)
+                        .filter(BrowserHistory.timestamp >= since))
+                if workspace:
+                    query = query.filter(BrowserHistory.workspace.in_(scope_workspaces(workspace)))
+                rows = (query.group_by(BrowserHistory.domain)
                         .order_by(func.count(BrowserHistory.id).desc())
                         .limit(limit).all())
                 return [{

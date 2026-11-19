@@ -41,15 +41,31 @@ class Settings:
         self.ocr_enabled = str(get_val('ocr_enabled', 'WS_OCR', '0')) == '1'
         self.idle_timeout = int(get_val('idle_timeout', 'WS_IDLE', 300))
         self.export_folder = get_val('export_folder', 'WS_EXPORT', str(_app_data_dir() / 'exports'))
-        
+        # Workspace/report defaults.  Company is the safe default so a company
+        # report can never silently contain development records.
+        self.default_workspace = str(get_val('default_workspace', 'WS_DEFAULT_WORKSPACE', 'company'))
+        self.retention_days = int(get_val('retention_days', 'WS_RETENTION_DAYS', 30))
+        self.max_storage_mb = int(get_val('max_storage_mb', 'WS_MAX_STORAGE_MB', 2048))
+        self.watcher_enabled = str(get_val('watcher_enabled', 'WS_WATCHER', '1')) == '1'
+        self.watcher_debounce = float(get_val('watcher_debounce', 'WS_WATCHER_DEBOUNCE', 1.5))
+        self.watcher_startup_grace = float(get_val('watcher_startup_grace', 'WS_WATCHER_GRACE', 1.0))
+        self.watcher_tracked_extensions = get_val('watcher_tracked_extensions', 'WS_WATCHER_EXTS', None)
+        self.watcher_ignored_dirs = get_val('watcher_ignored_dirs', 'WS_WATCHER_IGNORE', None)
+
         roots = get_val('project_roots', 'WS_PROJECT_ROOTS', None)
         if roots:
             if isinstance(roots, str):
                 self.project_roots = [r.strip() for r in roots.split(',') if r.strip()]
             else:
-                self.project_roots = roots
+                self.project_roots = [str(r) for r in roots if str(r).strip()]
         else:
             self.project_roots = [str(Path.home() / 'Documents'), str(Path.cwd())]
+        # Keep the classifier's development roots aligned with the watcher.
+        try:
+            from config.workspace_rules import classifier
+            classifier.update_rules({'development_roots': self.project_roots})
+        except Exception:
+            pass
 
         # ── Email / SMTP settings ─────────────────────────────────────────────
         self.email_to   = get_val('email_to', 'WS_EMAIL_TO', '')
@@ -69,6 +85,14 @@ class Settings:
             'idle_timeout': self.idle_timeout,
             'export_folder': self.export_folder,
             'project_roots': self.project_roots,
+            'default_workspace': self.default_workspace,
+            'retention_days': self.retention_days,
+            'max_storage_mb': self.max_storage_mb,
+            'watcher_enabled': '1' if self.watcher_enabled else '0',
+            'watcher_debounce': self.watcher_debounce,
+            'watcher_startup_grace': self.watcher_startup_grace,
+            'watcher_tracked_extensions': self.watcher_tracked_extensions,
+            'watcher_ignored_dirs': self.watcher_ignored_dirs,
             'email_to': self.email_to,
             'email_from': self.email_from,
             'email_smtp': self.email_smtp,
@@ -79,6 +103,24 @@ class Settings:
         })
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, indent=4)
+        try:
+            os.chmod(CONFIG_FILE, 0o600)
+        except OSError:
+            pass
+
+    def set_project_roots(self, roots):
+        cleaned = []
+        for root in roots or []:
+            root = str(root or '').strip()
+            if root and root not in cleaned:
+                cleaned.append(root)
+        self.project_roots = cleaned
+        try:
+            from config.workspace_rules import classifier
+            classifier.update_rules({'development_roots': cleaned})
+        except Exception:
+            pass
+        self.save()
 
 settings = Settings()
 
