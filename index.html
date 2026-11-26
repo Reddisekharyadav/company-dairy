@@ -3,8 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WorkSense AI — Intelligent Activity Tracker for Teams</title>
-    <meta name="description" content="WorkSense AI is a privacy-first, offline desktop activity tracker for Windows, macOS and Linux. Track productivity, browser history, code edits, and generate automatic daily reports.">
+    <title>WorkSense AI — Local-first activity intelligence for real work</title>
+    <meta name="description" content="WorkSense AI is a local-first Windows activity tracker that separates company work, development and personal time — including AI coding tools and browser AI assistants. Reports, browser history, file changes and meetings, all stored on your machine.">
+    <meta property="og:title" content="WorkSense AI — Know what you actually worked on">
+    <meta property="og:description" content="Local-first work tracking with AI-tool awareness, workspace separation, and reports you can actually use.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://mangomrs.me/company-dairy/screenshots/dashboard_work.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="theme-color" content="#0a0e17">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' font-family='Arial,sans-serif' font-size='34' font-weight='900' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -21,11 +28,14 @@
             --accent-green: #10b981;
             --accent-purple: #8b5cf6;
             --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
             --text-primary: #f1f5f9;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
             --border: rgba(255, 255, 255, 0.06);
+            --border-strong: rgba(255, 255, 255, 0.12);
             --gradient-hero: linear-gradient(135deg, #0a0e17 0%, #111827 50%, #0f172a 100%);
+            --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
         }
 
         html { scroll-behavior: smooth; }
@@ -59,10 +69,11 @@
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            background: rgba(10, 14, 23, 0.8);
+            background: rgba(10, 14, 23, 0.82);
             border-bottom: 1px solid var(--border);
-            transition: background 0.3s;
+            transition: background 0.3s, box-shadow 0.3s;
         }
+        nav.scrolled { box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); }
         .nav-inner {
             max-width: 1200px; margin: 0 auto;
             padding: 0 2rem;
@@ -73,17 +84,19 @@
             display: flex; align-items: center; gap: 10px;
             font-weight: 800; font-size: 1.3rem;
             text-decoration: none; color: var(--text-primary);
+            white-space: nowrap;
         }
         .nav-logo-icon {
             width: 36px; height: 36px; border-radius: 10px;
             background: linear-gradient(135deg, var(--accent), var(--accent-purple));
             display: grid; place-items: center;
             font-size: 1.1rem; font-weight: 900; color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
         }
-        .nav-links { display: flex; gap: 2rem; list-style: none; }
+        .nav-links { display: flex; gap: 1.7rem; list-style: none; }
         .nav-links a {
             color: var(--text-secondary); text-decoration: none;
-            font-size: 0.9rem; font-weight: 500;
+            font-size: 0.88rem; font-weight: 500;
             transition: color 0.2s;
         }
         .nav-links a:hover { color: var(--text-primary); }
@@ -92,6 +105,7 @@
             background: var(--accent); color: white;
             text-decoration: none; font-weight: 600; font-size: 0.85rem;
             transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
         }
         .nav-cta:hover {
             transform: translateY(-1px);
@@ -101,13 +115,12 @@
         /* ── Hero ────────────────────────────────────────── */
         .hero {
             position: relative; z-index: 1;
-            min-height: 100vh;
-            display: flex; align-items: center; justify-content: center;
+            padding: 8.5rem 2rem 3rem;
             text-align: center;
-            padding: 8rem 2rem 4rem;
             background: var(--gradient-hero);
+            overflow: hidden;
         }
-        .hero-content { max-width: 800px; }
+        .hero-content { max-width: 880px; margin: 0 auto; }
         .hero-badge {
             display: inline-flex; align-items: center; gap: 8px;
             padding: 6px 16px; border-radius: 99px;
@@ -127,10 +140,11 @@
             50% { opacity: 0.4; }
         }
         .hero h1 {
-            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-size: clamp(2.6rem, 6vw, 4.6rem);
             font-weight: 900;
-            line-height: 1.1;
-            margin-bottom: 1.5rem;
+            line-height: 1.08;
+            letter-spacing: -0.03em;
+            margin-bottom: 1.4rem;
             animation: fadeInUp 0.8s ease-out;
         }
         .hero h1 .gradient-text {
@@ -138,9 +152,9 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .hero p {
+        .hero .lede {
             font-size: 1.15rem; color: var(--text-secondary);
-            max-width: 600px; margin: 0 auto 2.5rem;
+            max-width: 680px; margin: 0 auto 2.2rem;
             animation: fadeInUp 1s ease-out;
         }
         .hero-buttons {
@@ -148,8 +162,8 @@
             animation: fadeInUp 1.2s ease-out;
         }
         .btn {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 0.8rem 1.8rem; border-radius: 12px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.85rem 1.8rem; border-radius: 12px;
             font-weight: 700; font-size: 0.95rem;
             text-decoration: none;
             transition: all 0.3s;
@@ -167,18 +181,112 @@
         .btn-secondary {
             background: var(--bg-card);
             color: var(--text-primary);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-strong);
         }
         .btn-secondary:hover {
             background: var(--bg-card-hover);
             transform: translateY(-2px);
         }
-        .hero-platforms {
-            margin-top: 2rem;
-            font-size: 0.85rem; color: var(--text-muted);
+        .btn-ghost {
+            background: transparent; color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { color: var(--text-primary); border-color: var(--border-strong); }
+
+        .trust-row {
+            display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem;
+            margin-top: 1.8rem;
             animation: fadeInUp 1.4s ease-out;
         }
-        .hero-platforms span { margin: 0 0.5rem; }
+        .trust-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.4rem 0.8rem; border-radius: 99px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.78rem; font-weight: 500;
+        }
+        .trust-chip strong { color: var(--text-primary); font-weight: 700; }
+
+        /* ── Hero dashboard preview ──────────────────────── */
+        .hero-preview {
+            position: relative;
+            max-width: 1120px;
+            margin: 3.5rem auto 0;
+            animation: fadeInUp 1.6s ease-out;
+        }
+        .hero-preview::before {
+            content: '';
+            position: absolute; inset: -8% -6% -12%;
+            background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.22), transparent 65%);
+            filter: blur(30px);
+            pointer-events: none;
+        }
+        .browser-frame {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-strong);
+            background: #0b1220;
+            box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
+        }
+        .browser-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 16px;
+            background: #131b2b;
+            border-bottom: 1px solid var(--border);
+        }
+        .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .browser-dot.r { background: #ef4444; }
+        .browser-dot.y { background: #f59e0b; }
+        .browser-dot.g { background: #10b981; }
+        .browser-url {
+            flex: 1; text-align: center;
+            font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px; padding: 4px 10px;
+            margin: 0 1rem;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .browser-frame img {
+            display: block; width: 100%;
+            height: 560px;
+            object-fit: cover;
+            object-position: top center;
+        }
+        .hero-preview .fade {
+            position: absolute; left: 0; right: 0; bottom: 0; height: 120px;
+            background: linear-gradient(transparent, var(--bg-primary));
+            pointer-events: none;
+        }
+
+        /* ── Stats band ──────────────────────────────────── */
+        .stats-band {
+            position: relative; z-index: 1;
+            max-width: 1100px; margin: -2rem auto 0;
+            padding: 0 2rem;
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .stats-band .stat {
+            background: var(--bg-secondary);
+            padding: 1.6rem 1rem;
+            text-align: center;
+        }
+        .stats-band .stat-number {
+            font-size: 1.9rem; font-weight: 900; line-height: 1.1;
+            background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stats-band .stat-label {
+            font-size: 0.78rem; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 1px; margin-top: 0.3rem;
+        }
 
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(24px); }
@@ -201,21 +309,83 @@
         .section-title {
             font-size: clamp(2rem, 4vw, 3rem);
             font-weight: 800; margin-bottom: 1rem;
+            letter-spacing: -0.02em;
         }
         .section-desc {
-            font-size: 1.1rem; color: var(--text-secondary);
-            max-width: 650px; margin-bottom: 3rem;
+            font-size: 1.08rem; color: var(--text-secondary);
+            max-width: 700px; margin-bottom: 3rem;
         }
         .section-center { text-align: center; }
         .section-center .section-desc { margin-left: auto; margin-right: auto; }
+
+        /* ── Workspace section ───────────────────────────── */
+        .workspace-section { background: var(--bg-secondary); }
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 1.2rem;
+        }
+        .workspace-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.8rem 1.5rem;
+            overflow: hidden;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .workspace-card:hover { transform: translateY(-4px); border-color: var(--border-strong); }
+        .workspace-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: var(--ws-color, var(--accent));
+        }
+        .workspace-card .ws-icon {
+            width: 46px; height: 46px; border-radius: 12px;
+            display: grid; place-items: center; font-size: 1.35rem;
+            background: color-mix(in srgb, var(--ws-color, var(--accent)) 16%, transparent);
+            border: 1px solid color-mix(in srgb, var(--ws-color, var(--accent)) 30%, transparent);
+            margin-bottom: 1rem;
+        }
+        .workspace-card h3 {
+            font-size: 1.05rem; font-weight: 800; margin-bottom: 0.35rem;
+            color: var(--ws-color, var(--text-primary));
+        }
+        .workspace-card p { font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 0.9rem; }
+        .ws-examples { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .ws-examples span {
+            font-size: 0.68rem; font-weight: 600;
+            padding: 0.2rem 0.5rem; border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+        }
+        .combined-callout {
+            margin-top: 1.5rem;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 1.5rem; flex-wrap: wrap;
+            padding: 1.6rem 2rem;
+            border-radius: 16px;
+            background: linear-gradient(120deg, rgba(59, 130, 246, 0.14), rgba(139, 92, 246, 0.14));
+            border: 1px solid rgba(99, 102, 241, 0.35);
+        }
+        .combined-callout h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 0.2rem; }
+        .combined-callout p { font-size: 0.9rem; color: var(--text-secondary); }
+        .combined-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.55rem 1rem; border-radius: 99px;
+            background: rgba(59, 130, 246, 0.18);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            font-size: 0.82rem; font-weight: 700; color: #bfdbfe;
+            white-space: nowrap;
+        }
 
         /* ── Features grid ───────────────────────────────── */
         .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
+            gap: 1.4rem;
         }
         .feature-card {
+            position: relative;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
@@ -224,39 +394,91 @@
         }
         .feature-card:hover {
             background: var(--bg-card-hover);
-            border-color: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.18);
             transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
         }
         .feature-icon {
-            width: 48px; height: 48px; border-radius: 12px;
-            display: grid; place-items: center;
-            font-size: 1.4rem; margin-bottom: 1rem;
+            width: 50px; height: 50px; border-radius: 13px;
+            display: grid; place-items: center; font-size: 1.45rem;
+            margin-bottom: 1.1rem;
         }
-        .fi-blue   { background: rgba(59, 130, 246, 0.15); }
-        .fi-green  { background: rgba(16, 185, 129, 0.15); }
-        .fi-purple { background: rgba(139, 92, 246, 0.15); }
-        .fi-orange { background: rgba(245, 158, 11, 0.15); }
-        .fi-red    { background: rgba(239, 68, 68, 0.15); }
-        .fi-cyan   { background: rgba(6, 182, 212, 0.15); }
-        .feature-card h3 {
-            font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;
-        }
-        .feature-card p {
-            font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;
+        .fi-blue   { background: rgba(59, 130, 246, 0.14); border: 1px solid rgba(59, 130, 246, 0.28); }
+        .fi-green  { background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.28); }
+        .fi-purple { background: rgba(139, 92, 246, 0.14); border: 1px solid rgba(139, 92, 246, 0.28); }
+        .fi-orange { background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.28); }
+        .fi-red    { background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.28); }
+        .fi-cyan   { background: rgba(6, 182, 212, 0.14); border: 1px solid rgba(6, 182, 212, 0.28); }
+        .feature-card h3 { font-size: 1.06rem; font-weight: 700; margin-bottom: 0.55rem; }
+        .feature-card p { font-size: 0.9rem; color: var(--text-secondary); }
+        .feature-tag {
+            position: absolute; top: 1.2rem; right: 1.2rem;
+            font-size: 0.6rem; font-weight: 800; letter-spacing: 1px;
+            padding: 0.25rem 0.55rem; border-radius: 5px;
+            background: rgba(16, 185, 129, 0.15); color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }
 
+        /* ── What's new ──────────────────────────────────── */
+        .whatsnew-section { background: var(--bg-secondary); }
+        .whatsnew-card {
+            display: grid;
+            grid-template-columns: 1.25fr 0.75fr;
+            gap: 2.5rem;
+            padding: 2.5rem;
+            border-radius: 20px;
+            background:
+                linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+                linear-gradient(135deg, rgba(59, 130, 246, 0.55), rgba(139, 92, 246, 0.45), rgba(16, 185, 129, 0.35)) border-box;
+            border: 1px solid transparent;
+        }
+        .whatsnew-card h3 { font-size: 1.35rem; font-weight: 800; margin-bottom: 0.4rem; }
+        .whatsnew-card .wn-sub { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 1.4rem; }
+        .wn-list { list-style: none; display: grid; gap: 0.8rem; }
+        .wn-list li {
+            display: flex; gap: 0.7rem; align-items: flex-start;
+            font-size: 0.9rem; color: var(--text-secondary);
+        }
+        .wn-list li strong { color: var(--text-primary); font-weight: 700; }
+        .wn-check {
+            flex: 0 0 auto;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(16, 185, 129, 0.16);
+            color: var(--accent-green);
+            display: grid; place-items: center;
+            font-size: 0.65rem; font-weight: 900;
+            margin-top: 2px;
+        }
+        .release-meta {
+            border-left: 1px solid var(--border);
+            padding-left: 2rem;
+            display: flex; flex-direction: column; justify-content: center; gap: 0.9rem;
+        }
+        .release-meta .rm-row { display: flex; flex-direction: column; gap: 0.15rem; }
+        .release-meta .rm-label {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.2px;
+            color: var(--text-muted); font-weight: 700;
+        }
+        .release-meta .rm-value { font-size: 0.9rem; color: var(--text-primary); font-weight: 600; }
+        .release-meta .rm-value.mono { font-family: var(--mono); font-size: 0.78rem; word-break: break-all; }
+        .copy-btn {
+            margin-left: 0.4rem; padding: 0.15rem 0.45rem;
+            border-radius: 4px; border: 1px solid var(--border-strong);
+            background: transparent; color: var(--text-secondary);
+            font-size: 0.62rem; font-weight: 700; cursor: pointer;
+        }
+        .copy-btn:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+
         /* ── Screenshots carousel ────────────────────────── */
-        .screenshots-section { background: var(--bg-secondary); }
+        .screenshots-section { background: var(--bg-primary); }
         .screenshots-tabs {
             display: flex; gap: 0.5rem; flex-wrap: wrap;
-            margin-bottom: 2rem; justify-content: center;
+            margin-bottom: 1.8rem; justify-content: center;
         }
         .ss-tab {
-            padding: 0.5rem 1.2rem; border-radius: 8px;
+            padding: 0.5rem 1.1rem; border-radius: 8px;
             background: var(--bg-card); border: 1px solid var(--border);
             color: var(--text-secondary); cursor: pointer;
-            font-size: 0.85rem; font-weight: 600;
+            font-size: 0.83rem; font-weight: 600;
             transition: all 0.2s;
         }
         .ss-tab:hover, .ss-tab.active {
@@ -266,9 +488,9 @@
         .ss-display {
             position: relative;
             border-radius: 16px; overflow: hidden;
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-strong);
             background: var(--bg-card);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
             max-width: 1100px; margin: 0 auto;
         }
         .ss-bar {
@@ -283,20 +505,31 @@
         .ss-bar-title {
             flex: 1; text-align: center;
             font-size: 0.8rem; color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--mono);
         }
-        .ss-img-wrap { position: relative; }
+        .ss-img-wrap {
+            position: relative;
+            aspect-ratio: 16 / 10;
+            background: #0b1220;
+        }
         .ss-img-wrap img {
-            width: 100%; display: block;
-            transition: opacity 0.4s ease;
+            width: 100%; height: 100%;
+            display: block;
+            object-fit: cover;
+            object-position: top center;
+            transition: opacity 0.3s ease;
         }
         .ss-img-wrap img.hidden { display: none; }
+        .ss-caption {
+            text-align: center; color: var(--text-muted);
+            font-size: 0.8rem; margin-top: 1rem;
+        }
 
         /* ── How it works ────────────────────────────────── */
         .how-it-works-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 2rem;
+            gap: 1.6rem;
         }
         .hiw-step {
             text-align: center;
@@ -308,72 +541,225 @@
         }
         .hiw-step:hover {
             transform: translateY(-4px);
-            border-color: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.18);
         }
         .hiw-number {
-            width: 56px; height: 56px; border-radius: 50%;
+            width: 52px; height: 52px; border-radius: 50%;
             background: linear-gradient(135deg, var(--accent), var(--accent-purple));
             display: inline-grid; place-items: center;
-            font-size: 1.3rem; font-weight: 800; color: white;
+            font-size: 1.2rem; font-weight: 800; color: white;
             margin-bottom: 1rem;
         }
         .hiw-step h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
         .hiw-step p  { font-size: 0.9rem; color: var(--text-secondary); }
+        .hiw-step code {
+            font-family: var(--mono); font-size: 0.78rem;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 6px; border-radius: 4px; color: var(--accent);
+        }
+
+        /* ── Security / privacy ──────────────────────────── */
+        .security-section { background: var(--bg-secondary); }
+        .security-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.2rem; margin-bottom: 2.5rem;
+        }
+        .security-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.6rem;
+        }
+        .security-card .sc-icon { font-size: 1.5rem; margin-bottom: 0.8rem; }
+        .security-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .security-card p { font-size: 0.87rem; color: var(--text-secondary); }
+        .data-flow {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 1.8rem;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+        }
+        .flow-step { text-align: center; position: relative; }
+        .flow-step:not(:last-child)::after {
+            content: '→'; position: absolute; right: -0.7rem; top: 20%;
+            color: var(--text-muted); font-size: 1.1rem;
+        }
+        .flow-step .fs-icon { font-size: 1.5rem; margin-bottom: 0.35rem; }
+        .flow-step strong { display: block; font-size: 0.88rem; margin-bottom: 0.15rem; }
+        .flow-step span { font-size: 0.75rem; color: var(--text-muted); }
+        .never-list {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 0.7rem 2rem; margin-top: 1.8rem;
+        }
+        .never-list div {
+            display: flex; gap: 0.6rem; align-items: center;
+            font-size: 0.88rem; color: var(--text-secondary);
+        }
+        .never-list .x { color: var(--accent-red); font-weight: 900; }
+
+        /* ── Comparison table ────────────────────────────── */
+        .compare-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--border); }
+        table.compare {
+            width: 100%; border-collapse: collapse; min-width: 680px;
+            background: var(--bg-card);
+        }
+        table.compare th, table.compare td {
+            padding: 1rem 1.3rem; text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+        table.compare thead th {
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+        table.compare thead th:nth-child(2) { color: var(--accent); }
+        table.compare tbody tr:last-child td { border-bottom: none; }
+        table.compare td:first-child { color: var(--text-secondary); }
+        table.compare td:nth-child(2) { color: var(--text-primary); font-weight: 600; }
+        table.compare td:nth-child(3) { color: var(--text-muted); }
+        .yes { color: var(--accent-green); font-weight: 800; }
+        .no  { color: var(--text-muted); }
 
         /* ── Download section ────────────────────────────── */
         .download-section {
             background: linear-gradient(135deg, var(--bg-secondary) 0%, #0f172a 100%);
         }
-        .download-cards {
+        .download-hero {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: 1.15fr 0.85fr;
             gap: 1.5rem;
+            align-items: stretch;
         }
-        .dl-card {
+        .dl-primary {
+            background: var(--bg-card);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 20px;
+            padding: 2.2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .dl-primary::before {
+            content: ''; position: absolute; top: -80px; right: -80px;
+            width: 240px; height: 240px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.22), transparent 70%);
+        }
+        .dl-platform {
+            display: flex; align-items: center; gap: 1rem; margin-bottom: 1.2rem;
+        }
+        .dl-platform .dl-icon { font-size: 2.6rem; }
+        .dl-platform h3 { font-size: 1.5rem; font-weight: 800; }
+        .dl-platform p { font-size: 0.85rem; color: var(--text-muted); }
+        .dl-primary .dl-desc { font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; }
+        .dl-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .dl-meta-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 0.9rem;
+            padding-top: 1.2rem; border-top: 1px solid var(--border);
+        }
+        .dl-meta-grid .dm-label {
+            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-muted); font-weight: 700;
+        }
+        .dl-meta-grid .dm-value { font-size: 0.85rem; font-weight: 600; }
+        .dl-meta-grid .dm-value.mono {
+            font-family: var(--mono); font-size: 0.7rem;
+            word-break: break-all; color: var(--text-secondary);
+        }
+        .dl-side {
+            display: grid; gap: 1.5rem;
+        }
+        .dl-side-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 2.5rem 2rem;
-            text-align: center;
+            padding: 1.5rem;
+        }
+        .dl-side-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.8rem; }
+        .dl-side-card ul { list-style: none; display: grid; gap: 0.5rem; }
+        .dl-side-card li {
+            display: flex; gap: 0.5rem; align-items: flex-start;
+            font-size: 0.84rem; color: var(--text-secondary);
+        }
+        .dl-side-card li .ok { color: var(--accent-green); font-weight: 900; }
+        .dl-side-card p { font-size: 0.84rem; color: var(--text-secondary); }
+        .dl-side-card code {
+            font-family: var(--mono); font-size: 0.72rem;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 5px; border-radius: 4px;
+            word-break: break-all;
+        }
+        .dl-secondary {
+            display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem;
+        }
+        .dl-secondary a {
+            flex: 1; min-width: 240px;
+            display: flex; align-items: center; gap: 0.9rem;
+            padding: 1.1rem 1.3rem;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            text-decoration: none; color: var(--text-primary);
             transition: all 0.3s;
         }
-        .dl-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(59, 130, 246, 0.2);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-        }
-        .dl-icon { font-size: 3rem; margin-bottom: 1rem; }
-        .dl-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.4rem; }
-        .dl-card p  {
-            font-size: 0.85rem; color: var(--text-muted);
-            margin-bottom: 1.5rem;
-        }
-        .dl-btn {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 0.7rem 1.6rem; border-radius: 10px;
-            background: var(--accent); color: white;
-            text-decoration: none; font-weight: 600; font-size: 0.9rem;
-            transition: all 0.3s;
-        }
-        .dl-btn:hover {
-            background: #2563eb;
-            box-shadow: 0 4px 20px var(--accent-glow);
-        }
+        .dl-secondary a:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+        .dl-secondary .ds-icon { font-size: 1.4rem; }
+        .dl-secondary strong { display: block; font-size: 0.88rem; }
+        .dl-secondary span { font-size: 0.75rem; color: var(--text-muted); }
 
         /* ── SmartScreen notice ───────────────────────────── */
         .smartscreen-notice {
-            max-width: 800px; margin: 3rem auto 0;
+            max-width: 900px; margin: 2.5rem auto 0;
             padding: 1.5rem 2rem;
             background: rgba(245, 158, 11, 0.08);
-            border: 1px solid rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.22);
             border-radius: 12px;
             font-size: 0.9rem; color: var(--text-secondary);
         }
         .smartscreen-notice strong { color: var(--accent-orange); }
         .smartscreen-notice code {
             background: rgba(255,255,255,0.06); padding: 2px 6px;
-            border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            border-radius: 4px; font-family: var(--mono);
             font-size: 0.8rem;
+        }
+        .smartscreen-notice .ss-steps {
+            display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.8rem;
+            font-size: 0.82rem; color: var(--text-muted);
+        }
+
+        /* ── FAQ ─────────────────────────────────────────── */
+        .faq-section { background: var(--bg-secondary); }
+        .faq-list { max-width: 860px; margin: 0 auto; display: grid; gap: 0.8rem; }
+        details.faq {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0 1.3rem;
+            transition: border-color 0.2s;
+        }
+        details.faq[open] { border-color: rgba(59, 130, 246, 0.3); }
+        details.faq summary {
+            list-style: none; cursor: pointer;
+            padding: 1.1rem 0;
+            font-weight: 600; font-size: 0.95rem;
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        }
+        details.faq summary::-webkit-details-marker { display: none; }
+        details.faq summary::after {
+            content: '+'; font-size: 1.3rem; font-weight: 300;
+            color: var(--text-muted); transition: transform 0.2s;
+        }
+        details.faq[open] summary::after { content: '−'; color: var(--accent); }
+        details.faq p {
+            padding: 0 0 1.2rem; font-size: 0.88rem; color: var(--text-secondary);
+            max-width: 92%;
+        }
+        details.faq p code {
+            font-family: var(--mono); font-size: 0.78rem;
+            background: rgba(255,255,255,0.06); padding: 2px 5px; border-radius: 4px;
         }
 
         /* ── About / Contact ─────────────────────────────── */
@@ -422,24 +808,67 @@
             margin-top: 0.3rem;
         }
 
+        /* ── Final CTA ───────────────────────────────────── */
+        .cta-band {
+            text-align: center;
+            padding: 4.5rem 2rem;
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.16), transparent 60%),
+                var(--bg-primary);
+            border-top: 1px solid var(--border);
+        }
+        .cta-band h2 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 900; margin-bottom: 0.8rem; }
+        .cta-band p { color: var(--text-secondary); max-width: 560px; margin: 0 auto 1.8rem; }
+
         /* ── Footer ──────────────────────────────────────── */
         footer {
             position: relative; z-index: 1;
-            text-align: center;
-            padding: 3rem 2rem;
+            padding: 3rem 2rem 2rem;
             border-top: 1px solid var(--border);
             color: var(--text-muted); font-size: 0.85rem;
         }
-        footer a { color: var(--accent); text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
+        .footer-inner {
+            max-width: 1200px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 1.5rem; flex-wrap: wrap;
+        }
+        .footer-brand { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-weight: 700; }
+        .footer-brand .nav-logo-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 0.9rem; }
+        .footer-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+        footer a { color: var(--text-secondary); text-decoration: none; }
+        footer a:hover { color: var(--text-primary); text-decoration: underline; }
+        .footer-bottom {
+            max-width: 1200px; margin: 1.5rem auto 0; padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+            font-size: 0.78rem;
+        }
 
         /* ── Responsive ──────────────────────────────────── */
-        @media (max-width: 768px) {
+        @media (max-width: 960px) {
+            .whatsnew-card { grid-template-columns: 1fr; gap: 1.8rem; }
+            .release-meta { border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 1.5rem; }
+            .download-hero { grid-template-columns: 1fr; }
+            .data-flow { grid-template-columns: repeat(2, 1fr); }
+            .flow-step:nth-child(2)::after { display: none; }
             .nav-links { display: none; }
+        }
+        @media (max-width: 768px) {
+            section { padding: 4rem 1.25rem; }
             .about-grid { grid-template-columns: 1fr; }
-            .hero { padding: 7rem 1.5rem 3rem; }
+            .hero { padding: 7rem 1.25rem 2.5rem; }
+            .hero-preview .browser-frame img { height: 360px; }
+            .stats-band { grid-template-columns: repeat(2, 1fr); margin-top: 1rem; }
             .screenshots-tabs { gap: 0.3rem; }
-            .ss-tab { padding: 0.4rem 0.8rem; font-size: 0.75rem; }
+            .ss-tab { padding: 0.4rem 0.75rem; font-size: 0.74rem; }
+            .ss-img-wrap { aspect-ratio: 4 / 3; }
+            .data-flow { grid-template-columns: 1fr; }
+            .flow-step::after { display: none; }
+            .dl-meta-grid { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+            .reveal { opacity: 1; transform: none; }
         }
 
         /* ── Scroll reveal ───────────────────────────────── */
@@ -456,7 +885,7 @@
     <div class="bg-glow bg-glow-2"></div>
 
     <!-- ── Nav ──────────────────────────────────────── -->
-    <nav>
+    <nav id="nav">
         <div class="nav-inner">
             <a href="#" class="nav-logo">
                 <div class="nav-logo-icon">W</div>
@@ -464,28 +893,96 @@
             </a>
             <ul class="nav-links">
                 <li><a href="#features">Features</a></li>
+                <li><a href="#workspaces">Workspaces</a></li>
                 <li><a href="#screenshots">Live Demo</a></li>
-                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#security">Privacy</a></li>
                 <li><a href="#download">Download</a></li>
-                <li><a href="#about">Contact</a></li>
+                <li><a href="#faq">FAQ</a></li>
             </ul>
-            <a href="#download" class="nav-cta">⬇ Download Free</a>
+            <a href="#download" class="nav-cta">⬇ Download</a>
         </div>
     </nav>
 
     <!-- ── Hero ─────────────────────────────────────── -->
     <section class="hero">
         <div class="hero-content">
-            <div class="hero-badge"><span class="dot"></span> v4.0 — Microsoft Recall Vision AI & Semantic Search</div>
-            <h1>Know exactly what<br>you <span class="gradient-text">worked on</span> today.</h1>
-            <p>WorkSense AI silently tracks your desktop activity, browser history, code edits, and generates beautiful daily reports — all 100% offline, no cloud, no server.</p>
+            <div class="hero-badge"><span class="dot"></span> <span id="release-version">v3.0 — AI-aware work tracking</span></div>
+            <h1>Know what you<br><span class="gradient-text">actually worked on</span>.</h1>
+            <p class="lede">WorkSense runs quietly in the background, separates company work from development and personal time, and turns your day into reports you can actually use. Everything stays on your machine.</p>
             <div class="hero-buttons">
-                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="btn btn-primary">⬇ Download for Windows (.zip)</a>
-                <a href="https://github.com/Reddisekharyadav/company-dairy" class="btn btn-secondary" target="_blank">⭐ View on GitHub</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="btn btn-primary js-download-windows">⬇ Download for Windows</a>
+                <a href="#screenshots" class="btn btn-secondary">Explore the dashboard</a>
             </div>
-            <p class="hero-platforms">
-                Available for <span>🪟 Windows</span> <span>🍎 macOS</span> <span>🐧 Linux</span>
-            </p>
+            <div class="trust-row">
+                <span class="trust-chip">🪟 <strong>Windows 10/11</strong></span>
+                <span class="trust-chip">🗄️ <strong>Local SQLite</strong></span>
+                <span class="trust-chip">🔒 <strong>No account</strong></span>
+                <span class="trust-chip">🧾 <strong>MIT licensed</strong></span>
+            </div>
+        </div>
+        <div class="hero-preview">
+            <div class="browser-frame">
+                <div class="browser-bar">
+                    <span class="browser-dot r"></span>
+                    <span class="browser-dot y"></span>
+                    <span class="browser-dot g"></span>
+                    <span class="browser-url">http://127.0.0.1:8765 — Work (Company + Development) · This week</span>
+                </div>
+                <img src="screenshots/dashboard_work.png" alt="WorkSense dashboard showing combined company and development work, AI tool categories, timeline and live activity feed">
+            </div>
+            <div class="fade"></div>
+        </div>
+    </section>
+
+    <!-- ── Stats band ────────────────────────────────── -->
+    <div class="stats-band reveal">
+        <div class="stat"><div class="stat-number">4</div><div class="stat-label">Workspaces</div></div>
+        <div class="stat"><div class="stat-number">11</div><div class="stat-label">Dashboard views</div></div>
+        <div class="stat"><div class="stat-number">4</div><div class="stat-label">Export formats</div></div>
+        <div class="stat"><div class="stat-number">0</div><div class="stat-label">Cloud accounts</div></div>
+    </div>
+
+    <!-- ── Workspaces ────────────────────────────────── -->
+    <section id="workspaces" class="workspace-section">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Workspaces</span>
+            <h2 class="section-title">One tracker. Four honest buckets.</h2>
+            <p class="section-desc">Most trackers lump every app into one productivity number. WorkSense keeps company work, development, personal time and unclassified activity separate — so your reports say what they mean.</p>
+        </div>
+        <div class="section-inner">
+            <div class="workspace-grid">
+                <div class="workspace-card reveal" style="--ws-color: var(--accent-green)">
+                    <div class="ws-icon">🏢</div>
+                    <h3>Company</h3>
+                    <p>Client delivery, communication, research and browser AI assistants used for work.</p>
+                    <div class="ws-examples"><span>Upwork</span><span>Slack</span><span>Notion</span><span>Google AI Studio</span><span>ChatGPT</span></div>
+                </div>
+                <div class="workspace-card reveal" style="--ws-color: var(--accent)">
+                    <div class="ws-icon">💻</div>
+                    <h3>Development</h3>
+                    <p>Coding IDEs, AI coding agents, repositories, files and technical research.</p>
+                    <div class="ws-examples"><span>VS Code</span><span>Cursor</span><span>OpenCode</span><span>Antigravity</span><span>GitHub</span></div>
+                </div>
+                <div class="workspace-card reveal" style="--ws-color: var(--accent-purple)">
+                    <div class="ws-icon">🎧</div>
+                    <h3>Personal</h3>
+                    <p>Streaming, social and personal browsing that should never appear in a work report.</p>
+                    <div class="ws-examples"><span>YouTube</span><span>Netflix</span><span>Spotify</span><span>Personal email</span></div>
+                </div>
+                <div class="workspace-card reveal" style="--ws-color: var(--accent-orange)">
+                    <div class="ws-icon">🧩</div>
+                    <h3>Unclassified</h3>
+                    <p>New or ambiguous apps wait here until you or the rules assign a workspace.</p>
+                    <div class="ws-examples"><span>Unknown apps</span><span>New tools</span><span>Edge cases</span></div>
+                </div>
+            </div>
+            <div class="combined-callout reveal">
+                <div>
+                    <h3>Need one number for the workday?</h3>
+                    <p>Choose <strong>Work (Company + Development)</strong> to see both scopes together. Personal and unclassified records stay out.</p>
+                </div>
+                <span class="combined-pill">◉ Combined work view</span>
+            </div>
         </div>
     </section>
 
@@ -493,40 +990,95 @@
     <section id="features">
         <div class="section-inner section-center reveal">
             <span class="section-label">Features</span>
-            <h2 class="section-title">Everything you need to<br>track your workday</h2>
-            <p class="section-desc">WorkSense runs silently in the background and gives you detailed reports of your computer activity — perfect for researchers, developers, and remote teams.</p>
+            <h2 class="section-title">Built for real work,<br>not vanity metrics</h2>
+            <p class="section-desc">Active windows, browser history, code edits, files, meetings and AI tools — captured locally and organized into reports you can hand to a client or manager.</p>
         </div>
         <div class="section-inner">
             <div class="features-grid">
                 <div class="feature-card reveal">
-                    <div class="feature-icon fi-blue">🖥️</div>
-                    <h3>Active Window Tracking</h3>
-                    <p>Automatically detects which application and window title you are using, categorized by type — coding, browsing, communication, and more.</p>
+                    <span class="feature-tag">NEW</span>
+                    <div class="feature-icon fi-blue">🤖</div>
+                    <h3>AI-tool aware</h3>
+                    <p>OpenCode, Cursor, VS Code and Antigravity count as development. Google AI Studio, ChatGPT, Gemini, Claude, Copilot and Perplexity count as company work.</p>
                 </div>
                 <div class="feature-card reveal">
-                    <div class="feature-icon fi-green">🌐</div>
-                    <h3>Browser History</h3>
-                    <p>Captures browsing history from Chrome, Edge, and Firefox with site names, URLs, visit counts, and top sites — like a private research log.</p>
+                    <span class="feature-tag">NEW</span>
+                    <div class="feature-icon fi-green">🗂️</div>
+                    <h3>Workspace isolation</h3>
+                    <p>Company, Development, Personal and Unclassified stay separate in every API, report and export. Pick Combined only when you want both work scopes.</p>
                 </div>
                 <div class="feature-card reveal">
-                    <div class="feature-icon fi-purple">💻</div>
-                    <h3>Code File Tracking</h3>
-                    <p>Tracks every file you edit in VS Code, JetBrains, and other IDEs. See which files, languages, and projects you worked on.</p>
+                    <div class="feature-icon fi-purple">🖥️</div>
+                    <h3>Active window tracking</h3>
+                    <p>Detects the application, window title and focused time — then categorizes it as coding, browsing, communication, meetings and more.</p>
                 </div>
                 <div class="feature-card reveal">
-                    <div class="feature-icon fi-orange">📸</div>
-                    <h3>Periodic Screen Captures</h3>
-                    <p>Takes periodic screenshots (with your consent) to give you a visual timeline of your day. All stored locally — never uploaded.</p>
+                    <div class="feature-icon fi-cyan">🌐</div>
+                    <h3>Browser history</h3>
+                    <p>Reads Chrome, Edge and Firefox history with site names, domains, visit counts and top sites. AI assistants and job platforms are classified automatically.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-orange">📂</div>
+                    <h3>Files, projects and git</h3>
+                    <p>A filesystem watcher records real file changes; a focused-window estimator tracks edit time, project, language and git commits — without storing file contents.</p>
                 </div>
                 <div class="feature-card reveal">
                     <div class="feature-icon fi-red">📊</div>
-                    <h3>Automatic Reports</h3>
-                    <p>Generates beautiful PDF, Markdown, and DOCX reports at end of day. Email them automatically to your manager or team.</p>
+                    <h3>Reports and Excel</h3>
+                    <p>Generate Markdown, PDF, DOCX and a multi-sheet Excel workbook from the same structured model. Email reports only when you configure SMTP and press send.</p>
                 </div>
                 <div class="feature-card reveal">
-                    <div class="feature-icon fi-cyan">🔒</div>
-                    <h3>100% Offline & Private</h3>
-                    <p>Everything runs locally on your machine. No cloud, no server, no account required. Your data stays on your computer.</p>
+                    <div class="feature-icon fi-blue">🧠</div>
+                    <h3>Local AI insights</h3>
+                    <p>Summaries, topic keywords, research queries and semantic memory search help you remember what you were doing — with an optional API key, not a required account.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-green">📅</div>
+                    <h3>Meeting detection</h3>
+                    <p>Recognizes Teams, Zoom, Google Meet and Webex windows, then logs meeting time, platform and title alongside your work.</p>
+                </div>
+                <div class="feature-card reveal">
+                    <div class="feature-icon fi-purple">🔒</div>
+                    <h3>Privacy by design</h3>
+                    <p>Screen capture is off until you consent, stored locally, and revocable at any time. No telemetry, no hidden upload, no keystroke logging.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── What's new ────────────────────────────────── -->
+    <section class="whatsnew-section">
+        <div class="section-inner">
+            <div class="whatsnew-card reveal">
+                <div>
+                    <span class="section-label">What's new</span>
+                    <h3>v3.0 makes AI work visible</h3>
+                    <p class="wn-sub">The release that stopped treating AI tools as “other” and gave every event a workspace.</p>
+                    <ul class="wn-list">
+                        <li><span class="wn-check">✓</span><span><strong>AI coding tools</strong> such as OpenCode, Cursor, Antigravity and Windsurf now land in Development.</span></li>
+                        <li><span class="wn-check">✓</span><span><strong>Browser AI assistants</strong> such as Google AI Studio, ChatGPT, Gemini and Claude now land in Company.</span></li>
+                        <li><span class="wn-check">✓</span><span><strong>Combined work view</strong> with per-event workspace badges, so you can audit every hour.</span></li>
+                        <li><span class="wn-check">✓</span><span><strong>Additive rule migration</strong> — your custom rules survive updates instead of being overwritten.</span></li>
+                        <li><span class="wn-check">✓</span><span><strong>Clearer labels</strong> for active time, searches and meetings across day, week and month views.</span></li>
+                    </ul>
+                </div>
+                <div class="release-meta">
+                    <div class="rm-row">
+                        <span class="rm-label">Current build</span>
+                        <span class="rm-value" id="release-name">Latest rolling release</span>
+                    </div>
+                    <div class="rm-row">
+                        <span class="rm-label">Published</span>
+                        <span class="rm-value" id="release-date">—</span>
+                    </div>
+                    <div class="rm-row">
+                        <span class="rm-label">Windows download</span>
+                        <span class="rm-value" id="release-size">—</span>
+                    </div>
+                    <div class="rm-row">
+                        <span class="rm-label">Asset SHA-256</span>
+                        <span class="rm-value mono" id="release-sha">Fetched from GitHub Releases <button class="copy-btn" id="copy-sha" type="button">copy</button></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -536,34 +1088,35 @@
     <section id="screenshots" class="screenshots-section">
         <div class="section-inner section-center reveal">
             <span class="section-label">Live Demo</span>
-            <h2 class="section-title">See it in action</h2>
-            <p class="section-desc">Real screenshots from a live WorkSense session showing all dashboard tabs and features.</p>
+            <h2 class="section-title">See the real dashboard</h2>
+            <p class="section-desc">Screenshots from a live WorkSense session. Switch views to see how company work, development, browser history, file changes and meetings are separated.</p>
         </div>
         <div class="section-inner reveal">
             <div class="screenshots-tabs" id="ss-tabs">
-                <button class="ss-tab active" data-img="today">📅 Today</button>
-                <button class="ss-tab" data-img="browser">🌐 Browser History</button>
-                <button class="ss-tab" data-img="researcher">🔬 Researcher</button>
-                <button class="ss-tab" data-img="dev_files">💻 Dev Files</button>
+                <button class="ss-tab active" data-img="work">◉ Work (Combined)</button>
                 <button class="ss-tab" data-img="company">🏢 Company</button>
-                <button class="ss-tab" data-img="reports">📊 Reports</button>
+                <button class="ss-tab" data-img="development">💻 Development</button>
+                <button class="ss-tab" data-img="browser">🌐 Browser History</button>
+                <button class="ss-tab" data-img="files">📂 File Changes</button>
+                <button class="ss-tab" data-img="meetings">📅 Meetings</button>
             </div>
             <div class="ss-display">
                 <div class="ss-bar">
                     <span class="ss-dot ss-dot-r"></span>
                     <span class="ss-dot ss-dot-y"></span>
                     <span class="ss-dot ss-dot-g"></span>
-                    <span class="ss-bar-title" id="ss-title">WorkSense Dashboard — Today</span>
+                    <span class="ss-bar-title" id="ss-title">WorkSense Dashboard — Work (Company + Development)</span>
                 </div>
                 <div class="ss-img-wrap" id="ss-wrap">
-                    <img src="screenshots/dashboard_today.png" alt="Today Dashboard" id="ss-today">
-                    <img src="screenshots/dashboard_browser.png" alt="Browser History" id="ss-browser" class="hidden">
-                    <img src="screenshots/dashboard_researcher.png" alt="Researcher" id="ss-researcher" class="hidden">
-                    <img src="screenshots/dashboard_dev_files.png" alt="Dev Files" id="ss-dev_files" class="hidden">
-                    <img src="screenshots/dashboard_company.png" alt="Company" id="ss-company" class="hidden">
-                    <img src="screenshots/dashboard_reports.png" alt="Reports" id="ss-reports" class="hidden">
+                    <img src="screenshots/dashboard_work.png" alt="Combined work dashboard" id="ss-work">
+                    <img src="screenshots/dashboard_company.png" alt="Company work dashboard" id="ss-company" class="hidden">
+                    <img src="screenshots/dashboard_development.png" alt="Development work dashboard" id="ss-development" class="hidden">
+                    <img src="screenshots/dashboard_browser.png" alt="Browser history dashboard" id="ss-browser" class="hidden">
+                    <img src="screenshots/dashboard_dev_files.png" alt="File changes and projects dashboard" id="ss-files" class="hidden">
+                    <img src="screenshots/dashboard_meetings.png" alt="Meetings dashboard" id="ss-meetings" class="hidden">
                 </div>
             </div>
+            <p class="ss-caption">Demo data. No client names, personal browsing or screen captures are included.</p>
         </div>
     </section>
 
@@ -572,30 +1125,105 @@
         <div class="section-inner section-center reveal">
             <span class="section-label">How It Works</span>
             <h2 class="section-title">Up and running in 60 seconds</h2>
-            <p class="section-desc">No installation wizard, no accounts, no setup. Just download and double-click.</p>
+            <p class="section-desc">One executable. No installer wizard, no Python, no account, no server to host.</p>
         </div>
         <div class="section-inner">
             <div class="how-it-works-grid">
                 <div class="hiw-step reveal">
                     <div class="hiw-number">1</div>
                     <h3>Download</h3>
-                    <p>Grab the single executable for your OS from the releases page. No installer needed.</p>
+                    <p>Grab the Windows <code>.zip</code> from the release. Verify the SHA-256 shown on this page if you want.</p>
                 </div>
                 <div class="hiw-step reveal">
                     <div class="hiw-number">2</div>
                     <h3>Run</h3>
-                    <p>Double-click WorkSense.exe. It starts tracking in the background and shows a small floating widget.</p>
+                    <p>Extract and double-click <code>WorkSense.exe</code>. Tracking starts with a small tray icon and optional floating widget.</p>
                 </div>
                 <div class="hiw-step reveal">
                     <div class="hiw-number">3</div>
-                    <h3>Dashboard</h3>
-                    <p>Open the local dashboard at <code style="color: var(--accent);">localhost:5678</code> to see your activity in real time.</p>
+                    <h3>Open the dashboard</h3>
+                    <p>The local dashboard opens at <code>localhost:8765</code>. Choose a workspace and period, then watch the live feed.</p>
                 </div>
                 <div class="hiw-step reveal">
                     <div class="hiw-number">4</div>
-                    <h3>Reports</h3>
-                    <p>At end of day, WorkSense generates a PDF report and optionally emails it to your team.</p>
+                    <h3>Report</h3>
+                    <p>Generate Markdown, PDF, DOCX or Excel for the day, week or month. Email it only when you explicitly send.</p>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Security / privacy ────────────────────────── -->
+    <section id="security" class="security-section">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Privacy</span>
+            <h2 class="section-title">Your workday stays on your machine</h2>
+            <p class="section-desc">WorkSense is local-first by architecture, not by promise. The database is a SQLite file in <code style="font-family:var(--mono);font-size:.82rem">%APPDATA%\WorkSense</code>, and every dashboard request is served from your own loopback address.</p>
+        </div>
+        <div class="section-inner">
+            <div class="security-grid">
+                <div class="security-card reveal">
+                    <div class="sc-icon">💾</div>
+                    <h3>Local storage</h3>
+                    <p>Activity, browser history, files, meetings and notes are stored in a local SQLite database. Nothing is uploaded in the background.</p>
+                </div>
+                <div class="security-card reveal">
+                    <div class="sc-icon">🛡️</div>
+                    <h3>Consent-based capture</h3>
+                    <p>Screen capture and OCR are off until you grant consent. You can revoke access from Settings and Privacy at any time.</p>
+                </div>
+                <div class="security-card reveal">
+                    <div class="sc-icon">🔌</div>
+                    <h3>Loopback only</h3>
+                    <p>The dashboard binds to <code style="font-family:var(--mono);font-size:.78rem">127.0.0.1</code>. Foreign Host and Origin headers are rejected, and the API docs are not exposed.</p>
+                </div>
+                <div class="security-card reveal">
+                    <div class="sc-icon">✉️</div>
+                    <h3>Explicit sharing</h3>
+                    <p>Email reports and optional AI requests happen only when you configure credentials and trigger them. There is no hidden sync.</p>
+                </div>
+            </div>
+            <div class="data-flow reveal">
+                <div class="flow-step"><div class="fs-icon">🖥️</div><strong>Capture</strong><span>Windows, browser, files, meetings</span></div>
+                <div class="flow-step"><div class="fs-icon">🗄️</div><strong>Local SQLite</strong><span>%APPDATA%\WorkSense\events.db</span></div>
+                <div class="flow-step"><div class="fs-icon">📊</div><strong>Dashboard</strong><span>127.0.0.1:8765</span></div>
+                <div class="flow-step"><div class="fs-icon">📤</div><strong>You export</strong><span>Reports, Excel, optional email</span></div>
+            </div>
+            <div class="never-list reveal">
+                <div><span class="x">✕</span> No cloud account or sign-in</div>
+                <div><span class="x">✕</span> No telemetry or usage analytics</div>
+                <div><span class="x">✕</span> No keystroke or clipboard logging</div>
+                <div><span class="x">✕</span> No file contents or diffs stored</div>
+                <div><span class="x">✕</span> No screen capture without consent</div>
+                <div><span class="x">✕</span> No hidden background upload</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Comparison ────────────────────────────────── -->
+    <section id="compare">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">Compare</span>
+            <h2 class="section-title">What makes it different</h2>
+            <p class="section-desc">A local-first tracker for people who need honest work reports — not surveillance dashboards.</p>
+        </div>
+        <div class="section-inner reveal">
+            <div class="compare-wrap">
+                <table class="compare">
+                    <thead>
+                        <tr><th>Capability</th><th>WorkSense AI</th><th>Typical cloud tracker</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Where data lives</td><td>Your local SQLite file</td><td class="no">Vendor cloud</td></tr>
+                        <tr><td>Account required</td><td class="yes">No</td><td class="no">Yes</td></tr>
+                        <tr><td>AI coding tools classified</td><td class="yes">Yes — Development</td><td class="no">Usually “Other”</td></tr>
+                        <tr><td>Browser AI assistants classified</td><td class="yes">Yes — Company</td><td class="no">Usually “Browsing”</td></tr>
+                        <tr><td>Company / Development separation</td><td class="yes">Built in</td><td class="no">Rare</td></tr>
+                        <tr><td>Screen capture</td><td>Optional, consent-based, local</td><td class="no">Often always-on</td></tr>
+                        <tr><td>Reports</td><td>MD, PDF, DOCX, Excel</td><td>PDF or web only</td></tr>
+                        <tr><td>Source code</td><td class="yes">Open source (MIT)</td><td class="no">Closed</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </section>
@@ -604,196 +1232,310 @@
     <section id="download" class="download-section">
         <div class="section-inner section-center reveal">
             <span class="section-label">Download</span>
-            <h2 class="section-title">Get WorkSense for your platform</h2>
-            <p class="section-desc">One standalone executable. No Python, no dependencies, no server needed.</p>
+            <h2 class="section-title">Get WorkSense for Windows</h2>
+            <p class="section-desc">One standalone executable. No Python, no dependencies, no server. Built for Windows 10/11 64-bit; macOS and Linux build from source.</p>
         </div>
         <div class="section-inner">
-            <div class="download-cards">
-                <div class="dl-card reveal">
-                    <div class="dl-icon">🪟</div>
-                    <h3>Windows</h3>
-                    <p>Windows 10 / 11 (64-bit)</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="dl-btn">⬇ Download .zip</a>
+            <div class="download-hero">
+                <div class="dl-primary reveal">
+                    <div class="dl-platform">
+                        <div class="dl-icon">🪟</div>
+                        <div>
+                            <h3>Windows 10 / 11</h3>
+                            <p>64-bit · standalone executable</p>
+                        </div>
+                    </div>
+                    <p class="dl-desc">Download the rolling <code>.zip</code> built from the latest <code>master</code> commit. The build includes the AI workspace rules and the new combined work view.</p>
+                    <div class="dl-actions">
+                        <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="btn btn-primary js-download-windows">⬇ Download .zip</a>
+                        <a href="https://github.com/Reddisekharyadav/company-dairy/releases" class="btn btn-ghost" target="_blank" rel="noopener">All releases ↗</a>
+                    </div>
+                    <div class="dl-meta-grid">
+                        <div>
+                            <div class="dm-label">Build</div>
+                            <div class="dm-value" id="dl-build">Latest rolling release</div>
+                        </div>
+                        <div>
+                            <div class="dm-label">Size</div>
+                            <div class="dm-value" id="dl-size">—</div>
+                        </div>
+                        <div>
+                            <div class="dm-label">Published</div>
+                            <div class="dm-value" id="dl-date">—</div>
+                        </div>
+                        <div>
+                            <div class="dm-label">Downloads</div>
+                            <div class="dm-value" id="dl-count">—</div>
+                        </div>
+                        <div style="grid-column: 1 / -1">
+                            <div class="dm-label">SHA-256 (download asset)</div>
+                            <div class="dm-value mono" id="dl-sha">Fetched from the GitHub release</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="dl-card reveal">
-                    <div class="dl-icon">🍎</div>
-                    <h3>macOS</h3>
-                    <p>macOS 12+ (Apple Silicon & Intel)</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-macOS.zip" class="dl-btn">⬇ Download</a>
-                </div>
-                <div class="dl-card reveal">
-                    <div class="dl-icon">🐧</div>
-                    <h3>Linux</h3>
-                    <p>Ubuntu 20.04+ / Fedora / Arch</p>
-                    <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Linux.zip" class="dl-btn">⬇ Download</a>
+                <div class="dl-side">
+                    <div class="dl-side-card reveal">
+                        <h4>What you get</h4>
+                        <ul>
+                            <li><span class="ok">✓</span> Single <strong>WorkSense.exe</strong> inside the zip</li>
+                            <li><span class="ok">✓</span> AI-tool aware workspace rules (v3)</li>
+                            <li><span class="ok">✓</span> Local dashboard at port 8765</li>
+                            <li><span class="ok">✓</span> PDF, DOCX, Markdown and Excel reports</li>
+                            <li><span class="ok">✓</span> No installer and no Python</li>
+                        </ul>
+                    </div>
+                    <div class="dl-side-card reveal">
+                        <h4>Verify the download</h4>
+                        <p>Compare the SHA-256 above with PowerShell:</p>
+                        <p style="margin-top:.6rem"><code>Get-FileHash .\WorkSense-Windows.zip -Algorithm SHA256</code></p>
+                        <p style="margin-top:.6rem;font-size:.76rem;color:var(--text-muted)">The hash is read live from the GitHub release asset. The executable itself is unsigned; signing is planned.</p>
+                    </div>
                 </div>
             </div>
+            <div class="dl-secondary reveal">
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-macOS.zip">
+                    <span class="ds-icon">🍎</span>
+                    <span><strong>macOS build</strong><span>Community build · Apple Silicon & Intel</span></span>
+                </a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Linux.zip">
+                    <span class="ds-icon">🐧</span>
+                    <span><strong>Linux build</strong><span>Community build · Ubuntu / Fedora / Arch</span></span>
+                </a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy#build-from-source">
+                    <span class="ds-icon">🛠️</span>
+                    <span><strong>Build from source</strong><span>Python 3.11 · PyInstaller spec included</span></span>
+                </a>
+            </div>
             <div class="smartscreen-notice reveal">
-                <strong>⚠️ Windows SmartScreen Notice:</strong> Since WorkSense is an open-source project and not signed with a paid Microsoft certificate, Windows Defender SmartScreen may show a warning. This is normal for all unsigned apps.
-                <br><br>
-                <strong>How to run it:</strong> Extract the <code>.zip</code> file, double-click the <code>.exe</code>, click <code>More info</code> → then click <code>Run anyway</code>. The app is completely safe and open-source — you can inspect every line of code on GitHub.
+                <strong>⚠️ Windows SmartScreen notice:</strong> WorkSense is an open-source project and the current executable is not signed with a paid Microsoft certificate. SmartScreen may show “Windows protected your PC”. This is expected for unsigned apps — the code is public and the hash is shown above.
+                <div class="ss-steps">
+                    <span>1. Extract the <code>.zip</code></span>
+                    <span>2. Double-click <code>WorkSense.exe</code></span>
+                    <span>3. <code>More info</code> → <code>Run anyway</code></span>
+                    <span>4. Optional: add an antivirus exclusion</span>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- ── About / Contact ──────────────────────────── -->
+    <!-- ── FAQ ───────────────────────────────────────── -->
+    <section id="faq" class="faq-section">
+        <div class="section-inner section-center reveal">
+            <span class="section-label">FAQ</span>
+            <h2 class="section-title">Questions before you run it</h2>
+            <p class="section-desc">The short answers. The full technical details are in the release checklist and production readiness audit on GitHub.</p>
+        </div>
+        <div class="section-inner">
+            <div class="faq-list reveal">
+                <details class="faq">
+                    <summary>Does WorkSense upload my data anywhere?</summary>
+                    <p>No. Activity, browser history, file metadata, meetings and notes are stored in a local SQLite database under <code>%APPDATA%\WorkSense</code>. The dashboard is served from <code>127.0.0.1</code>. Email reports and optional AI requests happen only when you configure credentials and explicitly trigger them.</p>
+                </details>
+                <details class="faq">
+                    <summary>Will Windows show a SmartScreen warning?</summary>
+                    <p>Yes, most likely. The executable is currently unsigned, so SmartScreen may show “Windows protected your PC”. Click <code>More info</code> → <code>Run anyway</code>. The SHA-256 of the download asset is shown on this page and comes directly from the GitHub release. Code signing is the next commercial milestone.</p>
+                </details>
+                <details class="faq">
+                    <summary>Does it record my screen or keystrokes?</summary>
+                    <p>No keystrokes or clipboard content are recorded. Screen capture is <strong>off by default</strong> and only starts after you grant consent. Captures stay on your machine and can be disabled at any time from Settings and Privacy.</p>
+                </details>
+                <details class="faq">
+                    <summary>How are AI coding tools and browser AI tools classified?</summary>
+                    <p>Coding IDEs and agents — VS Code, Cursor, OpenCode, Antigravity, Windsurf, Trae, Kiro and similar — are classified as <strong>Development</strong>. Browser AI assistants — Google AI Studio, ChatGPT, Gemini, Claude, Copilot, Perplexity, DeepSeek, Grok and similar — are classified as <strong>Company</strong>. Rules live in <code>workspace_rules.json</code> and are migrated additively, so your custom entries survive updates.</p>
+                </details>
+                <details class="faq">
+                    <summary>Can I use it on macOS or Linux?</summary>
+                    <p>The release pipeline produces macOS and Linux builds from the same source, but Windows 10/11 is the supported path for the current pilot. If you need macOS or Linux, build from source or open an issue so we can validate your environment.</p>
+                </details>
+                <details class="faq">
+                    <summary>What happens to data older than 30 days?</summary>
+                    <p>The default retention policy deletes rows older than 30 days at startup. You can raise <code>retention_days</code> in settings, and you should back up <code>events.db</code> before upgrading a machine that has older history.</p>
+                </details>
+                <details class="faq">
+                    <summary>Is there a team server or admin console?</summary>
+                    <p>No. WorkSense is intentionally local-first: each machine owns its database. Teams share results by exporting reports or the Excel workbook. There is no central server collecting employee activity.</p>
+                </details>
+                <details class="faq">
+                    <summary>How do I uninstall it?</summary>
+                    <p>Exit from the tray icon, delete <code>WorkSense.exe</code>, and optionally delete <code>%APPDATA%\WorkSense</code> to remove the local database, rules and settings. No services or drivers are installed.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── About / Contact ───────────────────────────── -->
     <section id="about">
         <div class="section-inner reveal">
             <div class="about-grid">
                 <div class="about-info">
                     <span class="section-label">Developer</span>
                     <h3>Built by Reddi Sekhar Yadav</h3>
-                    <p>Full-stack developer passionate about building productivity tools and AI-powered applications. WorkSense is an open-source project built to help teams and researchers track their work transparently.</p>
+                    <p>Full-stack developer building local-first productivity and AI tools. WorkSense started as a way to answer “what did I actually do today?” without sending a single byte to a cloud dashboard. It is open source under the MIT license.</p>
                     <div class="about-links">
-                        <a href="https://myportfolio.sekhar.tech/" class="about-link" target="_blank">🌐 Portfolio</a>
-                        <a href="https://github.com/Reddisekharyadav" class="about-link" target="_blank">💻 GitHub</a>
-                        <a href="https://github.com/Reddisekharyadav/company-dairy" class="about-link" target="_blank">📂 Source Code</a>
+                        <a href="https://myportfolio.sekhar.tech/" class="about-link" target="_blank" rel="noopener">🌐 Portfolio</a>
+                        <a href="https://github.com/Reddisekharyadav" class="about-link" target="_blank" rel="noopener">💻 GitHub</a>
+                        <a href="https://github.com/Reddisekharyadav/company-dairy" class="about-link" target="_blank" rel="noopener">📂 Source code</a>
+                        <a href="https://github.com/Reddisekharyadav/company-dairy/issues" class="about-link" target="_blank" rel="noopener">🐞 Report an issue</a>
                     </div>
                 </div>
                 <div class="about-stats">
-                    <div class="stat-card">
-                        <div class="stat-number">6+</div>
-                        <div class="stat-label">Dashboard Tabs</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">3</div>
-                        <div class="stat-label">Platforms</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">0</div>
-                        <div class="stat-label">Cloud Dependencies</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">100%</div>
-                        <div class="stat-label">Open Source</div>
-                    </div>
+                    <div class="stat-card"><div class="stat-number">11</div><div class="stat-label">Dashboard views</div></div>
+                    <div class="stat-card"><div class="stat-number">4</div><div class="stat-label">Workspaces</div></div>
+                    <div class="stat-card"><div class="stat-number">4</div><div class="stat-label">Export formats</div></div>
+                    <div class="stat-card"><div class="stat-number">0</div><div class="stat-label">Cloud dependencies</div></div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- ── Footer ───────────────────────────────────── -->
+    <!-- ── Final CTA ─────────────────────────────────── -->
+    <div class="cta-band">
+        <h2>Stop guessing where the day went.</h2>
+        <p>Download WorkSense, pick a workspace, and see your real workday in the local dashboard.</p>
+        <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Windows.zip" class="btn btn-primary js-download-windows">⬇ Download for Windows</a>
+    </div>
+
+    <!-- ── Footer ────────────────────────────────────── -->
     <footer>
-        <p>© 2024–2026 WorkSense AI by <a href="https://myportfolio.sekhar.tech/" target="_blank">Reddi Sekhar Yadav</a>. Open source under MIT License.</p>
-        <p style="margin-top: 0.5rem;">
-            <a href="https://github.com/Reddisekharyadav/company-dairy" target="_blank">GitHub</a>
-            &nbsp;·&nbsp;
-            <a href="https://github.com/Reddisekharyadav/company-dairy/releases" target="_blank">Releases</a>
-            &nbsp;·&nbsp;
-            <a href="https://myportfolio.sekhar.tech/" target="_blank">Portfolio</a>
-        </p>
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <div class="nav-logo-icon">W</div>
+                <span>WorkSense AI</span>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/Reddisekharyadav/company-dairy" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/releases" target="_blank" rel="noopener">Releases</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/blob/master/docs/RELEASE_CHECKLIST.md" target="_blank" rel="noopener">Release checklist</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/blob/master/docs/PRODUCTION_READINESS_AUDIT.md" target="_blank" rel="noopener">Readiness audit</a>
+                <a href="https://github.com/Reddisekharyadav/company-dairy/blob/master/LICENSE" target="_blank" rel="noopener">MIT License</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© 2024–2026 WorkSense AI by <a href="https://myportfolio.sekhar.tech/" target="_blank" rel="noopener">Reddi Sekhar Yadav</a>.</span>
+            <span>Local-first · No cloud account · Built for Windows 10/11</span>
+        </div>
     </footer>
 
     <script>
-        // ── Dynamic Release Info from GitHub API ──
+        // ── Dynamic release info from GitHub ──────────────────────────────
         const REPO = 'Reddisekharyadav/company-dairy';
         const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+        const WINDOWS_FALLBACK = `https://github.com/${REPO}/releases/download/latest/WorkSense-Windows.zip`;
+        let latestSha = '';
+
+        function shortShaFromName(name) {
+            const match = (name || '').match(/\(([0-9a-f]{7,40})\)/i);
+            return match ? match[1].slice(0, 7) : '';
+        }
 
         async function updateReleaseInfo() {
             try {
-                const resp = await fetch(API_URL);
+                const resp = await fetch(API_URL, { headers: { Accept: 'application/vnd.github+json' } });
                 if (!resp.ok) return;
                 const release = await resp.json();
-
-                // Update version badge
-                const badge = document.querySelector('.hero-badge');
-                if (badge) {
-                    const ver = (release.tag_name === 'latest' ? (release.name || 'Latest Version') : (release.tag_name || 'v4.0'));
-                    badge.innerHTML = `<span class="dot"></span> ${ver}`;
-                }
-
-                // Update download buttons with actual release assets
                 const assets = release.assets || [];
-                const assetMap = {};
-                assets.forEach(a => {
-                    if (a.name.includes('Windows') && a.name.endsWith('.zip')) assetMap.windows = a;
-                    if (a.name.includes('macOS') && a.name.endsWith('.zip')) assetMap.macos = a;
-                    if (a.name.includes('Linux') && a.name.endsWith('.zip')) assetMap.linux = a;
-                });
+                const win = assets.find(a => /windows/i.test(a.name) && a.name.endsWith('.zip'))
+                    || assets.find(a => a.name.endsWith('.zip'));
 
-                // Update download cards
-                const dlCards = document.querySelectorAll('.dl-card');
-                dlCards.forEach(card => {
-                    const h3 = card.querySelector('h3');
-                    const link = card.querySelector('.dl-btn');
-                    const info = card.querySelector('p');
-                    if (!h3 || !link) return;
+                const tag = release.tag_name || '';
+                const sha = shortShaFromName(release.name);
+                const buildLabel = (tag && tag !== 'latest')
+                    ? tag
+                    : (sha ? `Latest build · ${sha}` : 'Latest rolling build');
 
-                    const platform = h3.textContent.trim().toLowerCase();
-                    let asset = null;
-                    if (platform === 'windows') asset = assetMap.windows;
-                    else if (platform === 'macos') asset = assetMap.macos;
-                    else if (platform === 'linux') asset = assetMap.linux;
+                const versionEl = document.getElementById('release-version');
+                if (versionEl) versionEl.textContent = `${buildLabel} — AI-aware work tracking`;
 
-                    if (asset) {
-                        link.href = asset.browser_download_url;
-                        const sizeMB = (asset.size / (1024 * 1024)).toFixed(1);
-                        link.textContent = `⬇ Download (${sizeMB} MB)`;
-                        link.style.pointerEvents = 'auto';
-                        link.style.opacity = '1';
+                document.getElementById('release-name').textContent = release.name || buildLabel;
+                document.getElementById('dl-build').textContent = buildLabel;
+
+                const published = release.published_at
+                    ? new Date(release.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                    : '—';
+                document.getElementById('release-date').textContent = published;
+                document.getElementById('dl-date').textContent = published;
+
+                if (win) {
+                    document.querySelectorAll('.js-download-windows').forEach(link => {
+                        link.href = win.browser_download_url || WINDOWS_FALLBACK;
+                    });
+                    const sizeMB = (win.size / (1024 * 1024)).toFixed(1) + ' MB';
+                    document.getElementById('release-size').textContent = sizeMB;
+                    document.getElementById('dl-size').textContent = sizeMB;
+                    const count = win.download_count || 0;
+                    document.getElementById('dl-count').textContent = `${count} ${count === 1 ? 'download' : 'downloads'}`;
+
+                    latestSha = (win.digest || '').replace(/^sha256:/i, '');
+                    if (latestSha) {
+                        const short = `${latestSha.slice(0, 16)}…${latestSha.slice(-8)}`;
+                        document.getElementById('release-sha').innerHTML =
+                            `${short} <button class="copy-btn" id="copy-sha" type="button">copy</button>`;
+                        document.getElementById('dl-sha').textContent = latestSha;
+                        bindCopy();
                     }
-                });
-
-                // Update hero download button
-                const heroBtn = document.querySelector('.hero-buttons .btn-primary');
-                if (heroBtn && assetMap.windows) {
-                    heroBtn.href = assetMap.windows.browser_download_url;
-                    const sizeMB = (assetMap.windows.size / (1024 * 1024)).toFixed(1);
-                    heroBtn.textContent = `⬇ Download for Windows (${sizeMB} MB)`;
                 }
-
-                // Show release date
-                const publishDate = new Date(release.published_at).toLocaleDateString('en-US', {
-                    year: 'numeric', month: 'long', day: 'numeric'
-                });
-                const noticeEl = document.querySelector('.smartscreen-notice');
-                if (noticeEl) {
-                    const dateNote = document.createElement('div');
-                    dateNote.style.cssText = 'margin-top:12px;font-size:0.85rem;color:var(--text-muted)';
-                    dateNote.textContent = `Latest release: ${release.tag_name} • Published ${publishDate} • ${release.assets.length} platform(s)`;
-                    noticeEl.appendChild(dateNote);
-                }
-
-            } catch(e) {
-                console.log('Could not fetch release info:', e);
+            } catch (err) {
+                console.log('Could not fetch release info:', err);
             }
         }
 
-        // Run on page load
-        updateReleaseInfo();
+        function bindCopy() {
+            const btn = document.getElementById('copy-sha');
+            if (!btn) return;
+            btn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(latestSha);
+                    btn.textContent = 'copied';
+                    setTimeout(() => { btn.textContent = 'copy'; }, 1600);
+                } catch (_) {
+                    btn.textContent = 'select';
+                }
+            });
+        }
 
-        // ── Screenshot tab switcher ──
-        const tabs = document.querySelectorAll('.ss-tab');
-        const titleEl = document.getElementById('ss-title');
-        const titles = {
-            today: 'WorkSense Dashboard — Today',
-            browser: 'WorkSense Dashboard — Browser History',
-            researcher: 'WorkSense Dashboard — Researcher',
-            dev_files: 'WorkSense Dashboard — Dev Files',
+        // ── Screenshot tabs ───────────────────────────────────────────────
+        const ssTitles = {
+            work: 'WorkSense Dashboard — Work (Company + Development)',
             company: 'WorkSense Dashboard — Company',
-            reports: 'WorkSense Dashboard — Reports',
+            development: 'WorkSense Dashboard — Development',
+            browser: 'WorkSense Dashboard — Browser History',
+            files: 'WorkSense Dashboard — File Changes & Projects',
+            meetings: 'WorkSense Dashboard — Meetings',
         };
-        tabs.forEach(tab => {
+        const ssTabs = document.querySelectorAll('.ss-tab');
+        const ssTitle = document.getElementById('ss-title');
+        ssTabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                const img = tab.dataset.img;
-                tabs.forEach(t => t.classList.remove('active'));
+                const key = tab.dataset.img;
+                ssTabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
-                document.querySelectorAll('.ss-img-wrap img').forEach(i => i.classList.add('hidden'));
-                document.getElementById('ss-' + img).classList.remove('hidden');
-                titleEl.textContent = titles[img] || 'WorkSense Dashboard';
+                document.querySelectorAll('.ss-img-wrap img').forEach(img => img.classList.add('hidden'));
+                const target = document.getElementById('ss-' + key);
+                if (target) target.classList.remove('hidden');
+                ssTitle.textContent = ssTitles[key] || 'WorkSense Dashboard';
             });
         });
 
-        // ── Scroll reveal ──
+        // ── Nav shadow on scroll ──────────────────────────────────────────
+        const nav = document.getElementById('nav');
+        window.addEventListener('scroll', () => {
+            nav.classList.toggle('scrolled', window.scrollY > 12);
+        }, { passive: true });
+
+        // ── Scroll reveal ─────────────────────────────────────────────────
         const observer = new IntersectionObserver((entries) => {
-            entries.forEach(e => {
-                if (e.isIntersecting) {
-                    e.target.classList.add('visible');
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
                 }
             });
-        }, { threshold: 0.1 });
+        }, { threshold: 0.08 });
         document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // ── Boot ──────────────────────────────────────────────────────────
+        updateReleaseInfo();
+        bindCopy();
     </script>
 </body>
 </html>
-
