@@ -69,6 +69,9 @@ def _app_data_dir() -> Path:
 
 
 DEFAULT_RULES: Dict[str, Any] = {
+    # Bump this when new built-in app/domain/keyword rules are added so existing
+    # installations merge the additions instead of keeping an old rule file.
+    "rules_version": 3,
     "company_apps": [
         "outlook", "outlook.exe", "ms-teams", "ms-teams.exe", "teams",
         "teams.exe", "msteams", "msteams.exe", "winword", "winword.exe",
@@ -90,6 +93,14 @@ DEFAULT_RULES: Dict[str, Any] = {
         "sublime_text.exe", "atom", "atom.exe", "notepad++",
         "notepad++.exe", "vim", "nvim", "nvim.exe", "emacs",
         "emacs.exe", "zed", "zed.exe", "fleet", "fleet.exe",
+        # AI-first editors and coding agents
+        "opencode", "opencode.exe", "windsurf", "windsurf.exe",
+        "trae", "trae.exe", "kiro", "kiro.exe", "void", "void.exe",
+        "positron", "positron.exe", "lapce", "lapce.exe",
+        "helix", "hx", "hx.exe", "neovide", "neovide.exe",
+        "vscodium", "vscodium.exe", "code-oss", "code - oss",
+        # Other IDEs
+        "devenv", "devenv.exe", "studio64.exe", "xcode",
     ],
     "personal_apps": [
         "spotify", "spotify.exe", "netflix", "netflix.exe", "discord",
@@ -104,6 +115,12 @@ DEFAULT_RULES: Dict[str, Any] = {
         "workday.com", "sap.com", "servicenow.com", "zoom.us",
         "meet.google.com", "calendar.google.com", "docs.google.com",
         "sheets.google.com", "drive.google.com", "slack.com",
+        # AI assistants used for company work
+        "aistudio.google.com", "chatgpt.com", "chat.openai.com",
+        "gemini.google.com", "claude.ai", "copilot.microsoft.com",
+        "perplexity.ai", "grok.com", "chat.deepseek.com", "deepseek.com",
+        "poe.com", "mistral.ai", "chat.mistral.ai", "you.com",
+        "upwork.com",
     ],
     "development_domains": [
         "github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com",
@@ -115,6 +132,9 @@ DEFAULT_RULES: Dict[str, Any] = {
         "vuejs.org", "angular.io", "nextjs.org", "vercel.com",
         "netlify.com", "jetbrains.com", "cursor.com", "localhost",
         "127.0.0.1",
+        # AI developer platforms
+        "huggingface.co", "platform.openai.com", "console.anthropic.com",
+        "ai.google.dev",
     ],
     "personal_domains": [
         "youtube.com", "netflix.com", "spotify.com", "reddit.com",
@@ -127,11 +147,18 @@ DEFAULT_RULES: Dict[str, Any] = {
         "stand-up", "client call", "performance review", "payroll",
         "invoice", "purchase order", "sharepoint", "confluence",
         "salesforce", "workday",
+        # AI assistants and browser-based AI tools
+        "google ai studio", "ai studio", "aistudio", "chatgpt", "chat gpt",
+        "gemini", "claude", "copilot", "perplexity", "deepseek", "grok",
+        "mistral", "poe.com", "you.com", "openai", "anthropic", "upwork",
     ],
     "development_title_keywords": [
         "visual studio code", "vs code", "cursor", "antigravity",
         "pycharm", "intellij", "webstorm", "pull request", "merge request",
         "stack overflow", "github", "gitlab", "debugger", "terminal",
+        "opencode", "open code", "windsurf", "vscodium",
+        "android studio", "visual studio", "xcode", "hugging face",
+        "huggingface", "openai api", "anthropic console",
     ],
     "personal_title_keywords": [
         "netflix", "youtube", "spotify", "instagram", "facebook",
@@ -224,6 +251,28 @@ class WorkspaceClassifier:
                 for key, value in data.items():
                     if key in self.rules and isinstance(value, (list, dict)):
                         self.rules[key] = value
+
+                # Additive migration: keep the user's existing lists and append
+                # new built-in app/domain/keyword entries added in later builds.
+                try:
+                    stored_version = int(data.get("rules_version", 1) or 1)
+                except (TypeError, ValueError):
+                    stored_version = 1
+                default_version = int(DEFAULT_RULES.get("rules_version", 1))
+                if stored_version < default_version:
+                    for key, default_value in DEFAULT_RULES.items():
+                        if not isinstance(default_value, list):
+                            continue
+                        current = self.rules.get(key)
+                        if not isinstance(current, list):
+                            current = []
+                        merged = list(current)
+                        for item in default_value:
+                            if item not in merged:
+                                merged.append(item)
+                        self.rules[key] = merged
+                    self.rules["rules_version"] = default_version
+                    self._save()
         except Exception as exc:
             log.warning("Could not read workspace rules; using defaults: %s", exc)
 

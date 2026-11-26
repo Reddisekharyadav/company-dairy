@@ -114,8 +114,16 @@ def generate_morning_briefing() -> dict:
                               Event.idle == False)
                       .all())
             total_sec = sum(e.duration or 0 for e in events)
+            live_hours = round(total_sec / 3600, 1)
+            # Only claim "history begins now" when there genuinely is no
+            # activity; otherwise the card contradicts the live feed.
+            resume_message = (
+                f'Tracking is live — {live_hours} h captured in this window.'
+                if total_sec
+                else 'Start fresh today! Your tracking history begins now.'
+            )
             briefing.update({
-                'hours_worked': round(total_sec / 3600, 1),
+                'hours_worked': live_hours,
                 'files_edited_count': len(seen),
                 'top_files': top_files_live,
                 'last_commit': None,
@@ -123,7 +131,7 @@ def generate_morning_briefing() -> dict:
                 'research_topics': research_topics_live,
                 'search_count': len(research_topics_live),
                 'categories': {},
-                'resume_message': 'Start fresh today! Your tracking history begins now.',
+                'resume_message': resume_message,
                 'activity_timeline': activity_timeline,
                 'engagement': engagement_minutes,
             })

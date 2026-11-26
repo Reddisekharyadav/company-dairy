@@ -447,7 +447,7 @@
     <div class="logo">
       <div class="logo-icon">🧠</div>
       WorkSense AI
-      <span style="font-size:.7rem;color:var(--muted);font-weight:400;margin-left:4px">v2.0</span>
+      <span style="font-size:.7rem;color:var(--muted);font-weight:400;margin-left:4px">v3.0</span>
     </div>
     <div class="header-right">
       <span class="clock" id="header-time"></span>
@@ -688,7 +688,7 @@
   <!-- Stat Row -->
   <div class="grid g4" style="margin-bottom:20px">
     <div class="card">
-      <div class="card-title"><span class="icon">⏱️</span> Active Time Today</div>
+      <div class="card-title"><span class="icon">⏱️</span> Active Time</div>
       <div class="stat-value stat-accent" id="stat-total">—</div>
       <div class="stat-label">hours tracked</div>
     </div>
@@ -703,7 +703,7 @@
       <div class="stat-label">unique sites/apps</div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">🔍</span> Searches Today</div>
+      <div class="card-title"><span class="icon">🔍</span> Searches</div>
       <div class="stat-value stat-purple" id="stat-searches">—</div>
       <div class="stat-label">queries extracted</div>
     </div>
@@ -745,7 +745,7 @@
   <!-- Meetings & AI Insights Row -->
   <div class="grid g2" style="margin-bottom:20px">
     <div class="card">
-      <div class="card-title"><span class="icon">📅</span> Today's Meetings</div>
+      <div class="card-title"><span class="icon">📅</span> Meetings</div>
       <div class="activity-list" id="meetings-list">
         <div style="color:var(--muted);font-size:.83rem;text-align:center;padding:20px">No meetings detected yet</div>
       </div>
@@ -1403,7 +1403,7 @@ const OVERVIEW_DEFAULT_SCOPE = 'all';
 // still reset to Company unless the user has explicitly chosen another scope.
 const appState = { workspace: OVERVIEW_DEFAULT_SCOPE, period: 'daily', start: '', end: '' };
 const WORKSPACE_LABELS = {
-  company: 'Company', development: 'Development', combined: 'Company + Development',
+  company: 'Company', development: 'Development', combined: 'Work (Company + Development)',
   personal: 'Personal', unclassified: 'Unclassified', all: 'All workspaces',
 };
 const PERIOD_LABELS = {
@@ -1941,7 +1941,9 @@ async function refreshFeed() {
       const title = escapeHtml(rawTitle.substring(0,55));
       const site = escapeHtml(e.website || '');
       const idle = e.idle ? '💤' : '';
-      const wsBadge = appState.workspace === 'all' && e.workspace
+      // "all" mixes personal and unclassified, and "combined" merges Company
+      // with Development — both need the badge to keep the sources distinct.
+      const wsBadge = (appState.workspace === 'all' || appState.workspace === 'combined') && e.workspace
         ? `<span class="ws-badge ws-${escapeHtml(e.workspace)}">${escapeHtml(WORKSPACE_LABELS[e.workspace] || e.workspace)}</span>`
         : '';
       return `<div class="activity-item">
@@ -3287,7 +3289,8 @@ async function refreshLiveStatus() {
     const res = await fetch('/api/live_status').then(r => r.json());
     const el = document.getElementById('live-status');
     if (el) {
-      if (res.idle) {
+      const isIdle = res.idle || /^idle$/i.test((res.state || '').trim());
+      if (isIdle) {
         el.innerHTML = `<div class="status-dot" style="background:var(--yellow)"></div><span>Idle</span>`;
         el.style.background = 'rgba(251,191,36,.12)';
         el.style.borderColor = 'rgba(251,191,36,.25)';

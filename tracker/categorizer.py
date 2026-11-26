@@ -59,13 +59,49 @@ DOMAIN_MAP = {
     'pypi': 'PyPI',
     'localhost': 'Local Server',
     '127.0.0.1': 'Local Server',
+    'upwork': 'Upwork',
+    'ai studio': 'Google AI Studio',
+    'aistudio': 'Google AI Studio',
+    'opencode': 'OpenCode',
+    'antigravity': 'Antigravity',
+    'windsurf': 'Windsurf',
+    'copilot': 'Microsoft Copilot',
+    'perplexity': 'Perplexity',
+    'deepseek': 'DeepSeek',
+    'grok': 'Grok',
+    'mistral': 'Mistral',
+    'trae': 'Trae',
+    'kiro': 'Kiro',
+}
+
+# Specific product names must win over generic parent-brand keywords such as
+# "google" when both appear in a window title.
+PRIORITY_SITES = {
+    'google ai studio': 'Google AI Studio',
+    'ai studio': 'Google AI Studio',
+    'aistudio': 'Google AI Studio',
+    'chatgpt': 'ChatGPT',
+    'gemini': 'Gemini AI',
+    'claude': 'Claude AI',
+    'copilot': 'Microsoft Copilot',
+    'perplexity': 'Perplexity',
+    'deepseek': 'DeepSeek',
+    'grok': 'Grok',
+    'mistral': 'Mistral',
+    'opencode': 'OpenCode',
+    'antigravity': 'Antigravity',
+    'windsurf': 'Windsurf',
+    'trae': 'Trae',
+    'kiro': 'Kiro',
 }
 
 # Category mapping: (process_name_keywords, title_keywords) → category
 CATEGORY_RULES = [
     # Coding
     (['code.exe', 'pycharm', 'intellij', 'idea', 'webstorm', 'rider',
-      'vim', 'nvim', 'sublime', 'atom', 'cursor', 'antigravity'],
+      'vim', 'nvim', 'sublime', 'atom', 'cursor', 'antigravity',
+      'opencode', 'windsurf', 'trae', 'kiro', 'vscodium', 'devenv',
+      'studio64'],
      [], 'Coding'),
 
     # Coding via browser
@@ -75,6 +111,13 @@ CATEGORY_RULES = [
       'documentation', 'docs.', 'api reference', 'localhost', '127.0.0.1',
       'worksense'],
      'Coding/Research'),
+
+    # AI assistants used for work
+    (['chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'opera.exe'],
+     ['google ai studio', 'ai studio', 'aistudio', 'chatgpt', 'chat gpt',
+      'gemini', 'claude', 'copilot', 'perplexity', 'deepseek', 'grok',
+      'mistral', 'poe.com'],
+     'AI Tools'),
 
     # Communication
     (['chrome.exe', 'msedge.exe', 'firefox.exe'],
@@ -105,7 +148,7 @@ CATEGORY_RULES = [
     # Productivity
     (['chrome.exe', 'msedge.exe', 'firefox.exe'],
      ['notion', 'trello', 'jira', 'asana', 'google docs', 'google sheets',
-      'google drive', 'figma', 'canva'],
+      'google drive', 'figma', 'canva', 'upwork'],
      'Productivity'),
 
     (['excel.exe', 'winword.exe', 'powerpnt.exe', 'onenote.exe',
@@ -141,11 +184,26 @@ def extract_website_name(window_title: str, process_name: str) -> Optional[str]:
         return None
 
     title_lower = window_title.lower()
+    # The browser name itself must not be mistaken for the page's site.
+    for browser_name in (
+        'google chrome', 'microsoft edge', 'mozilla firefox', 'firefox',
+        'opera', 'brave', 'safari',
+    ):
+        title_lower = title_lower.replace(browser_name, ' ')
 
-    # Check domain map
-    for keyword, name in DOMAIN_MAP.items():
-        if keyword.lower() in title_lower:
-            return name
+    # Prefer specific product names so "ai studio"/"gemini" win over "google".
+    priority = [
+        (keyword, name) for keyword, name in PRIORITY_SITES.items()
+        if keyword in title_lower
+    ]
+    if priority:
+        priority.sort(key=lambda pair: len(pair[0]), reverse=True)
+        return priority[0][1]
+
+    matches = [(keyword, name) for keyword, name in DOMAIN_MAP.items() if keyword.lower() in title_lower]
+    if matches:
+        matches.sort(key=lambda pair: len(pair[0]), reverse=True)
+        return matches[0][1]
 
     # Try to extract site from "Page Title - Site Name - Browser" pattern
     parts = [p.strip() for p in re.split(r'\s[-–—]\s', window_title) if p.strip()]

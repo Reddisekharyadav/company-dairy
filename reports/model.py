@@ -18,7 +18,7 @@ WORKSPACE_LABELS = {
     "development": "Development Work",
     "personal": "Personal",
     "unclassified": "Unclassified",
-    "combined": "Company + Development",
+    "combined": "Work (Company + Development)",
     "all": "All Workspaces",
 }
 

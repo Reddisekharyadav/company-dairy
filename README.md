@@ -26,9 +26,13 @@ WorkSense AI is a **privacy-first, offline desktop activity tracker** that runs 
 
 ## 📸 Screenshots
 
-| Dashboard | Browser History | Reports |
+| Work (Company + Development) | Company | Development |
 |:-:|:-:|:-:|
-| ![Today](docs/screenshots/dashboard_today.png) | ![Browser](docs/screenshots/dashboard_browser.png) | ![Reports](docs/screenshots/dashboard_reports.png) |
+| ![Work](docs/screenshots/dashboard_work.png) | ![Company](docs/screenshots/dashboard_company.png) | ![Development](docs/screenshots/dashboard_development.png) |
+
+| Browser History | File Changes & Projects | Meetings |
+|:-:|:-:|:-:|
+| ![Browser](docs/screenshots/dashboard_browser.png) | ![Files](docs/screenshots/dashboard_dev_files.png) | ![Meetings](docs/screenshots/dashboard_meetings.png) |
 
 ---
 
@@ -37,12 +41,14 @@ WorkSense AI is a **privacy-first, offline desktop activity tracker** that runs 
 | Feature | Description |
 |---------|-------------|
 | 🖥️ **Active Window Tracking** | Detects which app/window you are using, auto-categorized (Coding, Browsing, Communication, etc.) |
+| 🗂️ **Four Workspaces** | Company, Development, Personal and Unclassified stay separate in every API, report and export; a Combined view shows Company + Development together |
+| 🤖 **AI-Tool Aware** | Coding IDEs/agents (VS Code, Cursor, OpenCode, Antigravity, Windsurf) count as Development; browser AI assistants (AI Studio, ChatGPT, Gemini, Claude, Copilot, Perplexity) count as Company |
 | 🌐 **Browser History** | Captures history from Chrome, Edge, and Firefox with URLs, titles, visit counts, and top sites |
 | 💻 **Code File Tracking** | Tracks files edited in VS Code, JetBrains IDEs — languages, file paths, and time spent |
-| 📸 **Screen Captures** | Periodic screenshots (with consent) for a visual timeline of your day |
-| 📊 **Auto Reports** | Generates PDF, Markdown, and DOCX reports automatically at end of day |
-| 📧 **Email Reports** | Optionally email daily reports to your manager/team via Gmail |
-| 🔒 **100% Offline** | No cloud, no server, no account. All data stays on your computer |
+| 📸 **Screen Captures** | Optional periodic screenshots (consent-based, stored locally) for a visual timeline of your day |
+| 📊 **Reports & Excel** | Generates Markdown, PDF, DOCX and multi-sheet Excel reports for any workspace and period |
+| 📧 **Email Reports** | Optionally email reports to your manager/team via your own SMTP credentials |
+| 🔒 **Local-First** | No cloud account and no telemetry. Data lives in a local SQLite file; optional email/AI features run only when you configure them |
 | 🪟 **Floating Widget** | Always-on-top status pill with recording timer, port display, pause/resume, and minimize |
 | 🖱️ **System Tray** | Full tray icon with right-click menu for all actions |
 

@@ -12,6 +12,54 @@ This checklist separates **automated tests executed in this repository** from
 media, or code-signing key**. A release is not GO while any required manual item
 or any blocking defect remains open.
 
+## Local execution record — 2026-11-25 (AI-tool classification + full E2E)
+
+Artifact: `dist\WorkSense.exe`, 78,598,028 bytes, SHA-256
+`B694FAD2261D341FA7D51930A7B1C1F91A8D04B48B7BAECF55BAD8DB0F5BBB9D`,
+built 2026-11-25 00:40 with Python 3.14.2 / PyInstaller 6.21.0. The build
+includes the AI-tool classification rules (`rules_version` 3: OpenCode,
+Antigravity, VS Code, Cursor, Windsurf, Trae, Kiro → development; AI Studio,
+ChatGPT, Gemini, Claude, Copilot, Perplexity, DeepSeek, Grok, Mistral, Poe,
+Upwork → company).
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Full pytest suite | **PASS** — 88 passed, 155 warnings, 61.62 s | terminal output |
+| `pip check` | **PASS** — no broken requirements | terminal output |
+| Real Windows watcher validation | **PASS** — 21/21 checks, `SUCCESS=True` | `test-artifacts/watcher-validation-20261125-002658.json` |
+| 60-second soak | **PASS** — 121 rows, max RSS 63.15 MB, avg CPU 3.66%, 11 threads, 0 duplicate groups, 0 watcher errors | `test-artifacts/soak-20261125-002804.json` |
+| Packaged clean install (new artifact) | **PASS** — 18/18 checks, `SUCCESS=True` | `test-artifacts/packaged-20261125-004126.json` |
+| Source E2E, isolated APPDATA | **PASS** — 61/61 checks | `test-artifacts/e2e-20261125-004234.json` |
+| Packaged rules bootstrap | **PASS** — `rules_version=3`, OpenCode/Antigravity/AI Studio/Upwork present, API served | packaged smoke run |
+| Excel workbook opened in Excel | **PASS** — Microsoft Excel 16.0 opened the workbook, 8 sheets, `A1 = WorkSense AI - Activity Report` | `test-artifacts/e2e-excel/company.xlsx` |
+| Windows Defender custom scan | **PASS** — completed, no threat detection | local Defender |
+| Code signing | **BLOCKED — `NotSigned`; no certificate installed** | `Get-AuthenticodeSignature` |
+
+The 61-check source E2E covered: every workspace scope and the combined scope
+(combined = company + development, all = sum of scopes); feed isolation;
+Markdown/PDF/DOCX reports for company, development, personal and unclassified
+with no cross-scope category leakage; structured report event isolation; Excel
+export restricted to company rows; briefing, websites, timeline, screenshots,
+meetings, research, search, memory search, insights, session context and
+settings endpoints; notes round-trip; invalid-scope normalisation; loopback-only
+listener; `/docs` disabled; foreign Host and Origin rejected; SQLite integrity
+`ok`; no `combined`/`all` values stored in `events`; clean shutdown.
+
+Live classification was also verified against real windows on 2026-11-24:
+Antigravity and OpenCode → **development / Coding**; Google AI Studio, Gemini and
+Upwork → **company / AI Tools or Productivity**; YouTube → **personal**.
+
+Real SMTP delivery was exercised during the E2E run through the operator's
+`.env` configuration (one report email was delivered). The automated
+"not configured" path returns HTTP 400 with `status=not_configured` instead of a
+500, which is the expected behaviour for clients without mail settings.
+
+Still blocking unrestricted distribution: code signing, Windows 10/11 clean-VM
+matrix without Python, 24–72 hour soak, network/disk reconnect, kernel
+event-queue overflow, real editor attribution, SmartScreen/AV reputation, and
+confirmation of the startup retention policy for installations with more than
+30 days of history.
+
 ## Local execution record — 2026-11-07
 
 These checks were executed locally on Windows 11 `10.0.26340` with the packaged
@@ -171,7 +219,7 @@ Use the project virtual environment on Windows:
 .\venv\Scripts\python.exe scripts\soak_test.py --duration 60 --interval 2
 ```
 
-- [ ] Full pytest suite passes (last verified: **71 passed**).
+- [ ] Full pytest suite passes (last verified: **88 passed**, 2026-11-25).
 - [ ] `pip check` reports no broken requirements.
 - [ ] `watchdog==7.1.0` (or a newer verified release) is installed. Do **not**
       ship `watchdog==3.0.0` on CPython 3.14/Windows: its observer shutdown can
@@ -246,8 +294,9 @@ Use the project virtual environment on Windows:
 - [ ] Long/multi-page content, empty reports, and midnight-crossing periods are
       covered by tests. Empty personal report was generated without error; the
       other two cases are covered by the automated suite.
-- [ ] Excel export contains filters, frozen header row, and escaped formula-leading
-      text (`=`, `+`, `-`, `@`).
+- [x] Excel export contains filters, frozen header row, and escaped formula-leading
+      text (`=`, `+`, `-`, `@`). The generated workbook was opened in Microsoft
+      Excel 16.0 on 2026-11-25 (8 sheets, company-only rows).
 - [x] Report filenames are collision-safe (generation timestamp + content hash).
 - [x] No workspace leakage: a company report does not include development/personal
       records. The live UI check generated company and development reports and
@@ -320,8 +369,13 @@ These cannot be proven by the automated suite in this environment:
 - [ ] Real Cursor, VS Code, Antigravity and background-agent attribution. Only the
       filesystem change is claimed; the editing application is recorded only when a
       focused editor title contains the exact filename.
-- [ ] Real corporate email/SMTP delivery and attachment rendering.
+- [x] Real corporate email/SMTP delivery and attachment rendering. **PASS
+      (2026-11-25):** one report email with the PDF attachment was delivered
+      through the configured Gmail SMTP during the E2E run. The unconfigured
+      path returns HTTP 400 `not_configured`.
 - [ ] Real OCR/AI service credentials and failure modes (offline, quota, timeout).
+      The no-credential path (`/api/insights`, briefing) returns HTTP 200 without
+      a crash; quota/timeout behaviour is not exercised.
 - [ ] Long-duration soak (24–72 hours) on a representative workstation.
 - [ ] Windows 10 and Windows 11 clean-install matrix.
 - [ ] Antivirus false-positive review and code-signing validation.

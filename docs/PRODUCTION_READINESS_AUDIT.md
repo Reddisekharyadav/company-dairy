@@ -437,6 +437,31 @@ represented as passing:
 - All audit changes remain uncommitted/unpushed. The release tag should only be
   created after review and after the manual checklist is signed off.
 
+### Re-validation — 2026-11-25
+
+The AI-tool classification change (workspace rules `rules_version` 3) and a new
+packaged artifact were validated end to end:
+
+- Full pytest: **88 passed**; `pip check`: clean.
+- Watcher validation: **21/21**, `SUCCESS=True`.
+- 60-second soak: **121 rows**, max RSS 63.15 MB, avg CPU 3.66%, 0 duplicate
+  groups, 0 watcher errors.
+- Packaged clean install: **18/18**, `SUCCESS=True` on
+  `dist\WorkSense.exe` (78,598,028 bytes, SHA-256
+  `B694FAD2261D341FA7D51930A7B1C1F91A8D04B48B7BAECF55BAD8DB0F5BBB9D`).
+- Source E2E with isolated APPDATA: **61/61** checks covering scopes, feed and
+  report isolation (MD/PDF/DOCX), structured report events, Excel, all dashboard
+  endpoints, notes, invalid-scope normalisation, loopback-only binding, disabled
+  docs, foreign Host/Origin rejection, SQLite integrity, and clean shutdown.
+- The Excel workbook opened in Microsoft Excel 16.0 with 8 sheets.
+- Real SMTP delivery succeeded once through the operator's `.env`; the
+  unconfigured path returns HTTP 400 `not_configured`.
+- Windows Defender custom scan on the new executable completed with no detection.
+
+The packaged executable still reports `NotSigned`. The clean-VM matrix,
+24–72 hour soak, network reconnect, kernel overflow, real editor attribution,
+and SmartScreen reputation remain open.
+
 ## GO/NO-GO
 
 | Scope | Decision |
@@ -450,11 +475,13 @@ glyphs.
 
 Validated since the previous audit: tray-menu Exit on the packaged build,
 retention backup/restore on a synthetic legacy database, report generation through
-the Reports tab with Word and PDF inspection, the PDF Unicode fix, and sleep/resume
-watcher recovery. Still open for unrestricted distribution: code signing,
-Windows 10/11 clean-VM installs, the 24–72 hour soak, real SMTP/OCR/AI failure
-modes, SmartScreen/antivirus reputation, and confirmation of the startup retention
-policy before upgrading installations with older history.
+the Reports tab with Word and PDF inspection, the PDF Unicode fix, sleep/resume
+watcher recovery, AI-tool workspace classification, full source E2E (61/61),
+Excel open in Microsoft Excel, and real SMTP delivery. Still open for
+unrestricted distribution: code signing, Windows 10/11 clean-VM installs, the
+24–72 hour soak, OCR/AI quota/timeout failure modes, SmartScreen/antivirus
+reputation, and confirmation of the startup retention policy before upgrading
+installations with older history.
 
 Release checklist: `docs\RELEASE_CHECKLIST.md`.
 
