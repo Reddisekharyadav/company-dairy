@@ -10,8 +10,6 @@ Click ☰ to expand a panel below with:
 
 Uses only tkinter (stdlib) — no extra dependencies.
 """
-import tkinter as tk
-from tkinter import messagebox, ttk
 import threading
 import time
 import logging
@@ -20,6 +18,19 @@ import sys
 import webbrowser
 from datetime import datetime
 from pathlib import Path
+
+# tkinter ships with CPython but can be missing (minimal Linux images) or
+# fail to load (built against a newer glibc).  Import it optionally so the
+# rest of the application — including the web dashboard — still works.
+try:  # pragma: no cover - depends on the host Python build
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+    _TK_ERROR = None
+except Exception as exc:  # ImportError, OSError from a broken _tkinter.so
+    tk = None
+    messagebox = None
+    ttk = None
+    _TK_ERROR = exc
 
 log = logging.getLogger('worksense.widget')
 
@@ -80,6 +91,9 @@ def show_consent_dialog() -> bool:
         response = ctypes.windll.user32.MessageBoxW(0, message, title, style)
         result = (response == 6)  # IDYES
     else:
+        if tk is None or messagebox is None:
+            log.warning('Consent dialog needs tkinter, which is unavailable: %s', _TK_ERROR)
+            return False
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
@@ -211,6 +225,9 @@ class StatusWidget:
 
     def start(self):
         """Build and run the widget (blocking — run in its own thread)."""
+        if tk is None:
+            log.warning('Floating widget needs tkinter, which is unavailable: %s', _TK_ERROR)
+            return
         self._running = True
         self._tk_thread_id = threading.get_ident()
         try:

@@ -1077,7 +1077,7 @@
                     </div>
                     <div class="rm-row">
                         <span class="rm-label">Asset SHA-256</span>
-                        <span class="rm-value mono" id="release-sha">Fetched from GitHub Releases <button class="copy-btn" id="copy-sha" type="button">copy</button></span>
+                        <span class="rm-value mono" id="release-sha">Read from GitHub Releases at page load. <a href="https://github.com/Reddisekharyadav/company-dairy/releases/tag/latest" target="_blank" rel="noopener">Open release page</a></span>
                     </div>
                 </div>
             </div>
@@ -1288,7 +1288,7 @@
                         <h4>Verify the download</h4>
                         <p>Compare the SHA-256 above with PowerShell:</p>
                         <p style="margin-top:.6rem"><code>Get-FileHash .\WorkSense-Windows.zip -Algorithm SHA256</code></p>
-                        <p style="margin-top:.6rem;font-size:.76rem;color:var(--text-muted)">The hash is read live from the GitHub release asset. The executable itself is unsigned; signing is planned.</p>
+                        <p style="margin-top:.6rem;font-size:.76rem;color:var(--text-muted)">The hash is read live from the GitHub release asset, and the same checksums are listed in the release notes. The executable itself is unsigned; signing is planned.</p>
                     </div>
                 </div>
             </div>
@@ -1299,7 +1299,7 @@
                 </a>
                 <a href="https://github.com/Reddisekharyadav/company-dairy/releases/download/latest/WorkSense-Linux.zip">
                     <span class="ds-icon">🐧</span>
-                    <span><strong>Linux build</strong><span>Community build · Ubuntu / Fedora / Arch</span></span>
+                    <span><strong>Linux build</strong><span>Community build · Ubuntu 22.04+ / glibc 2.35+</span></span>
                 </a>
                 <a href="https://github.com/Reddisekharyadav/company-dairy#build-from-source">
                     <span class="ds-icon">🛠️</span>
@@ -1345,7 +1345,7 @@
                 </details>
                 <details class="faq">
                     <summary>Can I use it on macOS or Linux?</summary>
-                    <p>The release pipeline produces macOS and Linux builds from the same source, but Windows 10/11 is the supported path for the current pilot. If you need macOS or Linux, build from source or open an issue so we can validate your environment.</p>
+                    <p>The release pipeline produces macOS and Linux builds from the same source, but Windows 10/11 is the supported path for the current pilot. The Linux build targets glibc 2.35+ (Ubuntu 22.04 or newer). It starts the local dashboard at <code>127.0.0.1:8765</code> even when there is no desktop session; the tray icon and floating widget need X11/Wayland and are skipped on headless machines. If you need macOS or Linux, build from source or open an issue so we can validate your environment.</p>
                 </details>
                 <details class="faq">
                     <summary>What happens to data older than 30 days?</summary>
@@ -1467,15 +1467,19 @@
 
                     latestSha = (win.digest || '').replace(/^sha256:/i, '');
                     if (latestSha) {
-                        const short = `${latestSha.slice(0, 16)}…${latestSha.slice(-8)}`;
                         document.getElementById('release-sha').innerHTML =
-                            `${short} <button class="copy-btn" id="copy-sha" type="button">copy</button>`;
-                        document.getElementById('dl-sha').textContent = latestSha;
+                            `<span style="word-break:break-all">${latestSha}</span> <button class="copy-btn" id="copy-sha" type="button">copy</button>`;
+                        document.getElementById('dl-sha').innerHTML =
+                            `<span style="word-break:break-all">${latestSha}</span>`;
                         bindCopy();
                     }
                 }
             } catch (err) {
                 console.log('Could not fetch release info:', err);
+                const note = 'Could not read release metadata in this browser. ' +
+                    '<a href="https://github.com/Reddisekharyadav/company-dairy/releases/tag/latest" target="_blank" rel="noopener">Open the release page</a> for the SHA-256 checksums.';
+                document.getElementById('release-sha').innerHTML = note;
+                document.getElementById('dl-sha').innerHTML = note;
             }
         }
 

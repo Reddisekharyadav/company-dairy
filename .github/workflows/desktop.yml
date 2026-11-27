@@ -15,9 +15,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Pin Linux to 22.04 (glibc 2.35).  Building on ubuntu-latest produced
+        # binaries that required glibc 2.42 (bundled Tcl/Tk, termios, libtinfo)
+        # and refused to start on Ubuntu 24.04 (glibc 2.39).
+        os: [ubuntu-22.04, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             asset_name: WorkSense-Linux
             zip_name: WorkSense-Linux.zip
             executable_name: WorkSense
@@ -93,6 +96,28 @@ jobs:
         id: sha
         run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
+      - name: Write release notes with checksums
+        run: |
+          {
+            echo "🔄 **Auto-built from latest \`master\` commit** \`${{ github.sha }}\`"
+            echo ""
+            echo "This release is automatically updated on every push to \`master\`."
+            echo "Executables are available for Windows, Linux, and macOS with all the latest features."
+            echo ""
+            echo "### Downloads"
+            echo "- 🪟 **Windows**: [WorkSense-Windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Windows.zip)"
+            echo "- 🐧 **Linux** (glibc 2.35+, Ubuntu 22.04+): [WorkSense-Linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Linux.zip)"
+            echo "- 🍎 **macOS**: [WorkSense-macOS.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-macOS.zip)"
+            echo ""
+            echo "### SHA-256"
+            echo '```'
+            ( cd dist && sha256sum *.zip )
+            echo '```'
+            echo ""
+            echo "Verify with \`sha256sum -c\` (Linux/macOS) or \`Get-FileHash\` (Windows)."
+          } > release-body.md
+          cat release-body.md
+
       - name: Delete existing latest release (if any)
         run: |
           gh release delete latest --yes --cleanup-tag || true
@@ -105,16 +130,7 @@ jobs:
         with:
           tag_name: latest
           name: "WorkSense AI Latest (${{ steps.sha.outputs.short }})"
-          body: |
-            🔄 **Auto-built from latest `master` commit** `${{ github.sha }}`
-
-            This release is automatically updated on every push to `master`.
-            Executables are available for Windows, Linux, and macOS with all the latest features.
-
-            ### Downloads
-            - 🪟 **Windows**: [WorkSense-Windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Windows.zip)
-            - 🐧 **Linux**: [WorkSense-Linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-Linux.zip)
-            - 🍎 **macOS**: [WorkSense-macOS.zip](https://github.com/${{ github.repository }}/releases/download/latest/WorkSense-macOS.zip)
+          body_path: release-body.md
           make_latest: true
           prerelease: false
           files: |

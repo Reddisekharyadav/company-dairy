@@ -214,23 +214,34 @@ meeting_trk   = MeetingTracker(interval=10.0)
 smart_sum     = SmartSummarizer(interval=30.0, summary_interval=300.0)
 
 
+def _start_component(name: str, starter) -> None:
+    """Start one background component without taking the dashboard down.
+
+    A tracker can fail for host-specific reasons (no desktop session, no
+    xdotool, read-only home).  The web server must still come up so the user
+    can see what is available instead of the process exiting silently.
+    """
+    try:
+        starter()
+    except Exception as exc:
+        log.warning("%s did not start: %s", name, exc)
+
+
 @app.on_event("startup")
 def startup():
     init_db()
     # The filesystem watcher is idempotent; starting twice is safe.
     if getattr(settings, "watcher_enabled", True):
-        try:
-            fs_watcher.start()
-        except Exception as exc:
-            log.warning("Filesystem watcher did not start: %s", exc)
-    tracker.start()
-    git_watcher.start()
-    screen_worker.start()  # Only activates if consent is granted
-    file_watcher.start()
-    search_ext.start()
-    browser_hist.start()
-    meeting_trk.start()
-    smart_sum.start()
+        _start_component("Filesystem watcher", fs_watcher.start)
+    _start_component("Activity tracker", tracker.start)
+    _start_component("Git watcher", git_watcher.start)
+    # Only activates if consent is granted
+    _start_component("Screen capture worker", screen_worker.start)
+    _start_component("File edit watcher", file_watcher.start)
+    _start_component("Search extractor", search_ext.start)
+    _start_component("Browser history tracker", browser_hist.start)
+    _start_component("Meeting tracker", meeting_trk.start)
+    _start_component("Smart summarizer", smart_sum.start)
 
 
 @app.on_event("shutdown")
@@ -241,18 +252,21 @@ def shutdown():
         save_session_state()
     except Exception:
         pass
-    tracker.stop()
-    git_watcher.stop()
-    screen_worker.stop()
-    file_watcher.stop()
-    try:
-        fs_watcher.stop()
-    except Exception:
-        pass
-    search_ext.stop()
-    browser_hist.stop()
-    meeting_trk.stop()
-    smart_sum.stop()
+    for name, component in (
+        ("Activity tracker", tracker),
+        ("Git watcher", git_watcher),
+        ("Screen capture worker", screen_worker),
+        ("File edit watcher", file_watcher),
+        ("Filesystem watcher", fs_watcher),
+        ("Search extractor", search_ext),
+        ("Browser history tracker", browser_hist),
+        ("Meeting tracker", meeting_trk),
+        ("Smart summarizer", smart_sum),
+    ):
+        try:
+            component.stop()
+        except Exception as exc:
+            log.warning("%s did not stop cleanly: %s", name, exc)
 
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────

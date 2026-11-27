@@ -115,8 +115,10 @@ macOS has strict security and privacy controls.
 3. **Gatekeeper:** Since this is an open-source app and not signed with an Apple Developer ID, you must **Right-Click > Open** the app the first time to bypass the "Unidentified Developer" warning.
 
 ### 🐧 Linux
-1. **Wayland vs X11:** WorkSense uses `xdotool` and `xprop` to track the active window. This works perfectly on **X11** sessions. However, on **Wayland** (the default on newer Ubuntu/Fedora releases), the strict security model prevents apps from reading other window titles. For full tracking, you must log in to an X11 session.
-2. **Execution:** Ensure the downloaded binary is marked as executable (`chmod +x WorkSense-Linux`).
+1. **glibc baseline:** The release binary is built on Ubuntu 22.04 and needs **glibc 2.35+** (Ubuntu 22.04, Debian 12, Fedora 36 or newer). Older distributions should build from source.
+2. **Wayland vs X11:** WorkSense uses `xdotool` and `xprop` to track the active window. This works on **X11** sessions. On **Wayland** the security model prevents apps from reading other window titles, so only the dashboard, browser history, files, git and reports are usable. For full window tracking, log in to an X11 session.
+3. **Execution:** Mark the downloaded binary as executable (`chmod +x WorkSense-Linux`) and run it.
+4. **Headless servers / containers / VMs:** The tray icon and floating widget need a desktop session. Without one, WorkSense now starts the local dashboard anyway — open <http://127.0.0.1:8765>. Global keyboard/mouse idle detection is skipped (reported as idle) instead of aborting startup, and screen capture stays off until consent is granted.
 
 ### 🪟 Windows
 1. **SmartScreen Warning:** Windows Defender SmartScreen will flag the `.exe` as an "Unrecognized app" because it is not signed with an Extended Validation (EV) Code Signing certificate. Click **"More info"** → **"Run anyway"** to bypass it.

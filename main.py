@@ -58,13 +58,19 @@ log.info('WorkSense starting (Python %s)', sys.version.split()[0])
 
 
 # ── Import guard ─────────────────────────────────────────────────────────────
+# Keep Pillow and the tray backend independent: a headless Linux host has no
+# X display, so pystray fails to import even though image handling is fine.
 try:
     from PIL import Image, ImageDraw
+except Exception as e:
+    log.warning('Pillow unavailable: %s', e)
+    Image = ImageDraw = None
+
+try:
     import pystray
     from pystray import Icon, MenuItem, Menu
 except Exception as e:
-    log.critical('Tray dependency unavailable: %s', e, exc_info=True)
-    Image = ImageDraw = None
+    log.warning('Tray backend unavailable: %s', e)
     pystray = None
     Icon = MenuItem = Menu = None
 
@@ -537,9 +543,16 @@ def main(argv=None):
 
     global _tray_icon_ref
 
+    # The tray is optional.  On headless Linux (containers, SSH, CI, VMs
+    # without a desktop session) pystray cannot import its X backend.  Keep
+    # the dashboard running instead of exiting with code 1.
+    headless = os.environ.get("WS_HEADLESS") == "1"
     if Icon is None or Menu is None or MenuItem is None:
-        log.error('Tray dependencies are unavailable; workspace commands are still available from the CLI.')
-        return 1
+        log.warning(
+            'Tray icon unavailable; starting the web dashboard only. '
+            'Workspace CLI commands remain available.'
+        )
+        headless = True
 
     if sys.platform == 'win32':
         try:
@@ -552,7 +565,6 @@ def main(argv=None):
             pass
 
     # ── Show consent dialog FIRST (only on first launch) ────────────────────
-    headless = os.environ.get("WS_HEADLESS") == "1"
     if not headless:
         try:
             from ui.status_widget import show_consent_dialog
@@ -635,7 +647,9 @@ def main(argv=None):
     icon = Icon(
         name='WorkSense',
         icon=_make_icon_image(),
-        title='WorkSense AI — Tracking…',
+        # Keep the title ASCII: the Linux appindicator/xorg backends pass it
+        # through C string APIs and crash on characters such as U+2014.
+        title='WorkSense AI - Tracking',
         menu=menu,
     )
     _tray_icon_ref = icon
@@ -643,6 +657,16 @@ def main(argv=None):
     log.info('Tray icon starting')
     try:
         icon.run()
+    except Exception as exc:
+        log.warning(
+            'Tray icon failed (%s); continuing with the web dashboard only.', exc
+        )
+        if web_thread.is_alive():
+            try:
+                while True:
+                    time.sleep(3600)
+            except KeyboardInterrupt:
+                pass
     finally:
         try:
             from backend.app import (
