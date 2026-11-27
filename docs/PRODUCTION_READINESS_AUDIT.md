@@ -462,6 +462,54 @@ The packaged executable still reports `NotSigned`. The clean-VM matrix,
 24–72 hour soak, network reconnect, kernel overflow, real editor attribution,
 and SmartScreen reputation remain open.
 
+### Linux release defect and fix — 2026-11-27
+
+Reported symptom: the rolling Linux binary exited with status 1 within seconds on
+Ubuntu 24.04 (glibc 2.39) under Xvfb, before the dashboard started.
+
+Reproduced on Ubuntu 24.04.3 (WSL2, glibc 2.39) with the `04c0162` artifact
+(83,196,886 B, SHA-256 `3ec11c9d…a5c59f`):
+
+- Without a display, `pystray` → `Xlib` raised `DisplayNameError`. `main()`
+  treated a missing tray as fatal and returned 1 before starting the server.
+- The one-file archive bundled `libtcl8.6.so`, `libtk8.6.so`, `termios` and
+  `libtinfo` built against **glibc 2.42** on the `ubuntu-latest` runner, so
+  `_tkinter` could not load on glibc 2.39.
+- The tray icon title used U+2014/U+2026, which the Linux xorg/appindicator
+  backends pass through C string APIs.
+
+Fixes (commit `92411ed`, `bc05ddb`, `ad359a2`):
+
+- `tracker/input_tracker.py`: pynput is optional; missing X backend logs one
+  warning and reports Idle instead of aborting import.
+- `main.py`: missing tray starts the dashboard headless instead of returning 1;
+  Pillow and pystray imports are independent; ASCII tray title; a tray that
+  fails to run keeps the server alive.
+- `backend/app.py`: every background component starts and stops independently,
+  so one host-specific failure cannot take the dashboard down.
+- `ui/status_widget.py`: tkinter is optional.
+- `desktop.yml`: Linux builds on `ubuntu-22.04` (glibc 2.35 baseline).
+- `worksense_onefile.spec`: bundle the pynput X backends and the sqlite-vec
+  native library (`vec0.so`), which previously fell back to FTS5.
+- Release notes now list SHA-256 for all three assets; the landing page shows
+  the full hash and links the release page when the GitHub API is unavailable.
+
+Verification on the rebuilt artifact `ad359a2`:
+
+| Check | Result |
+|---|---|
+| Linux asset | 81,757,729 B, SHA-256 `7fac6ef6…142f6364` |
+| Linux glibc floor | **2.35** (was 2.42) |
+| Headless run, no `DISPLAY` | dashboard HTTP 200 on `127.0.0.1:8765` in 3 s; sqlite-vec loaded; pynput warning only |
+| X11 run (WSLg, consent preset) | status widget launched, tray started, input listeners started, process alive |
+| Windows asset | 60,311,532 B, SHA-256 `f9066484…42913bb0`; exe 60,818,744 B, `3.0.0.0`, `NotSigned` |
+| Windows headless run | dashboard HTTP 200 in 3 s, v3.0 + combined view, sqlite-vec loaded, `rules_version` 3 |
+
+Linux limitations that remain: the tray needs a system-tray host (WSLg has none,
+so pystray logs "Failed to dock icon" without stopping the app); screen capture
+needs a real X display (WSLg returns `XGetImage() failed`); Wayland still hides
+window titles; macOS and Linux stay community builds.
+
 ## GO/NO-GO
 
 | Scope | Decision |

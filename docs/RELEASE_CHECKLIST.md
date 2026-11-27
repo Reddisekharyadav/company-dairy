@@ -12,6 +12,33 @@ This checklist separates **automated tests executed in this repository** from
 media, or code-signing key**. A release is not GO while any required manual item
 or any blocking defect remains open.
 
+## Local execution record — 2026-11-27 (CI release + Linux startup fix)
+
+Artifacts: rolling `latest` release built by GitHub Actions from commit
+`ad359a2` (workflow `desktop.yml`).
+
+| Asset | Size | SHA-256 |
+|---|---|---|
+| `WorkSense-Windows.zip` | 60,311,532 B | `f90664848d3007e58fbea0c3013d02bfc061951283cac11f226a52b142913bb0` |
+| `WorkSense-Linux.zip` | 81,757,729 B | `7fac6ef61d59709637c3a9e5605c0ee5516054c9d70e7abe9280f402142f6364` |
+| `WorkSense-macOS.zip` | 57,747,575 B | `a1cbaf6853f3addbe96f22d6082cc4f525da5bff36c6c0cd5e184debf02c66e4` |
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Full pytest suite | **PASS** — 93 passed, 155 warnings, 63.82 s | terminal output |
+| Windows artifact hash | **PASS** — downloaded asset matches the release digest | `Get-FileHash` |
+| Windows executable | 60,818,744 B, FileVersion `3.0.0.0`, `NotSigned` | `Get-AuthenticodeSignature` |
+| Windows headless smoke | **PASS** — dashboard HTTP 200 in 3 s, v3.0 + combined view, sqlite-vec loaded, `rules_version` 3 | packaged run, isolated APPDATA |
+| Linux glibc floor | **PASS** — max bundled requirement **2.35** (was 2.42) | `objdump -T` on extracted archive |
+| Linux headless run (Ubuntu 24.04, glibc 2.39, no `DISPLAY`) | **PASS** — dashboard HTTP 200 in 3 s, sqlite-vec loaded, tray skipped with a warning | WSL2, isolated APPDATA |
+| Linux X11 run (WSLg, consent preset) | **PASS** — status widget launched, tray started, input listeners started, process stayed alive | WSL2 + WSLg |
+| Release notes checksums | **PASS** — `latest` body lists SHA-256 for all three zips | `gh release view latest` |
+
+The 2026-11-26 Linux report (exit code 1 before the dashboard, `_tkinter`
+needing glibc 2.42, tray crash on U+2014) was reproduced on Ubuntu 24.04 and is
+fixed in `92411ed`, `bc05ddb` and `ad359a2`; details and residual Linux
+limitations are in `docs/PRODUCTION_READINESS_AUDIT.md`.
+
 ## Local execution record — 2026-11-25 (AI-tool classification + full E2E)
 
 Artifact: `dist\WorkSense.exe`, 78,598,028 bytes, SHA-256
@@ -219,7 +246,7 @@ Use the project virtual environment on Windows:
 .\venv\Scripts\python.exe scripts\soak_test.py --duration 60 --interval 2
 ```
 
-- [ ] Full pytest suite passes (last verified: **88 passed**, 2026-11-25).
+- [ ] Full pytest suite passes (last verified: **93 passed**, 2026-11-27).
 - [ ] `pip check` reports no broken requirements.
 - [ ] `watchdog==7.1.0` (or a newer verified release) is installed. Do **not**
       ship `watchdog==3.0.0` on CPython 3.14/Windows: its observer shutdown can
