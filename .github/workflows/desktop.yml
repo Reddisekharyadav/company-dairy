@@ -6,6 +6,14 @@ on:
       - master
     tags:
       - 'v*'
+    # Docs/markdown-only pushes still reach the site because GitHub Pages is
+    # built from master/docs.  They do not need to rebuild three executables
+    # and recreate the rolling release (which would change every asset hash).
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
 
 jobs:

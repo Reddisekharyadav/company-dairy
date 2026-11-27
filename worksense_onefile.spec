@@ -114,15 +114,28 @@ if platform.system() == 'Windows':
         'win32process',
         'win32con',
         'pywintypes',
+        'pynput.keyboard._win32',
+        'pynput.mouse._win32',
+        'pynput._util.win32',
     ]
 elif platform.system() == 'Darwin':
     hiddenimports += [
         'pystray._darwin',
+        'pynput.keyboard._darwin',
+        'pynput.mouse._darwin',
+        'pynput._util.darwin',
     ]
 elif platform.system() == 'Linux':
     hiddenimports += [
         'pystray._xorg',
         'pystray._appindicator',
+        # pynput selects its backend with importlib, so PyInstaller cannot see
+        # these imports.  Without them the frozen build logged
+        # "No module named 'pynput.keyboard._xorg'" and lost idle detection.
+        'pynput.keyboard._xorg',
+        'pynput.mouse._xorg',
+        'pynput._util.xorg',
+        'pynput._util.xorg_keysyms',
     ]
 
 # ── Data files & Binaries ─────────────────────────────────────────────────────
@@ -132,6 +145,20 @@ binaries = []
 try:
     datas += collect_data_files('sqlite_vec')
     binaries += collect_dynamic_libs('sqlite_vec')
+except Exception:
+    pass
+
+# The sqlite-vec wheel ships vec0.dll / vec0.so / vec0.dylib next to
+# __init__.py.  collect_data_files() skips native libraries, so the frozen
+# build could not load the extension and fell back to FTS5.  Bundle it
+# explicitly into the same package directory that sqlite_vec.load() expects.
+try:
+    import sqlite_vec as _sqlite_vec
+    _sqlite_vec_dir = os.path.dirname(os.path.abspath(_sqlite_vec.__file__))
+    for _lib in ('vec0.dll', 'vec0.so', 'vec0.dylib'):
+        _lib_path = os.path.join(_sqlite_vec_dir, _lib)
+        if os.path.isfile(_lib_path):
+            binaries.append((_lib_path, 'sqlite_vec'))
 except Exception:
     pass
 
