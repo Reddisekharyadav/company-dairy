@@ -19,7 +19,12 @@ class WinOCREngine:
             log.info("Windows Native OCR (winocr) initialized successfully.")
         except ImportError:
             self._winocr = None
-            log.warning("winocr package not found. Native Windows OCR unavailable.")
+            # winocr is Windows-only; do not warn on Linux/macOS hosts.
+            import sys
+            if sys.platform == 'win32':
+                log.warning("winocr package not found. Native Windows OCR unavailable.")
+            else:
+                log.debug("winocr is Windows-only; using the portable OCR path.")
 
     def is_available(self) -> bool:
         return self._is_available
